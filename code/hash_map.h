@@ -1,0 +1,6 @@
+#ifndef DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_H
+#define DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_H
+
+#include "hash_map/wait_free_hash_map.h"
+
+#endif  // DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_H
