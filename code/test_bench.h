@@ -306,12 +306,13 @@ void benchmarkInsertedWFHM(HashMapWorkload workload) {
   for (int i = 0; i < insert_each_need; ++i) {
     hash_map.insert(insert_each_need * rank + i, rank);
   }
-  std::cout << "[[Rank = " << rank << " ] " << "Prev insert " << insert_each_need << " done" << std::endl;
-  ///
-
-  // WaitFreeHashMap<int, int> hash_map(MPI_COMM_WORLD);
 
   MPI_Barrier(MPI_COMM_WORLD);
+  if (rank == 0) {
+    std::cout << "Prev insert " << prev_insert << " done" << std::endl;
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
+
   start = std::chrono::high_resolution_clock::now();
 
   // TESTING
@@ -394,10 +395,13 @@ void benchmarkInsertedMHT(HashMapWorkload workload, int load_factor_in_percent) 
   for (int i = 0; i < insert_each_need; ++i) {
     hash_map.insert(insert_each_need * rank + i, rank);
   }
-  std::cout << "[[Rank = " << rank << " ] " << "Prev insert " << insert_each_need << " done" << std::endl;
-  ///
 
   MPI_Barrier(MPI_COMM_WORLD);
+  if (rank == 0) {
+    std::cout << "Prev insert " << prev_insert << " done" << std::endl;
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
+
   start = std::chrono::high_resolution_clock::now();
 
   // TESTING
@@ -480,14 +484,13 @@ void benchmarkInsertedBCHT(HashMapWorkload workload, int load_factor_in_percent)
   for (int i = 0; i < insert_each_need; ++i) {
     hash_map.insert(insert_each_need * rank + i, rank);
   }
-  std::cout << "[[Rank = " << rank << " ] " << "Prev insert " << insert_each_need << " done" << std::endl;
-  ///
-  // int estimate_insert_op_each = op_number_each * workload.insert_weight / op_weight_total;
-  // int table_length_each = (estimate_insert_op_each * 100 / load_factor_in_percent / 4);
-
-  // BucketizedCuckooHashTable<int, int> hash_map(MPI_COMM_WORLD, table_length_each);
 
   MPI_Barrier(MPI_COMM_WORLD);
+  if (rank == 0) {
+    std::cout << "Prev insert " << prev_insert << " done" << std::endl;
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
+
   start = std::chrono::high_resolution_clock::now();
 
   // TESTING
