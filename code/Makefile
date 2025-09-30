@@ -11,6 +11,8 @@ HOSTF = hosts
 CFLAG = -g -Wall -std=c++11 -lm
 DEBUG_FLAG = -DDEBUG -DWRITE_TO_FILE
 
+NP=8
+
 $(EXEF):
 	mkdir $(EXEF)
 

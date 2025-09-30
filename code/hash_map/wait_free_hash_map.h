@@ -1,15 +1,17 @@
 #ifndef DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_WAIT_FREE_HASH_MAP_H
 #define DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_WAIT_FREE_HASH_MAP_H
 
-// #define DEBUG
+#define BASIC_HASH_MAP
 
 #include <mpi.h>
+#include <unistd.h>
 
 #include <algorithm>
 #include <bitset>
 #include <cmath>
 #include <iostream>
 #include <list>
+#include <new>
 #include <random>
 
 namespace ngu {
@@ -58,7 +60,9 @@ class Hash {
  public:
   Bitset<Key> operator()(Key key) const {
     Bitset<Key> bits = toBitset(key);
+#ifndef DEBUG
     shuffle_bitset(bits);
+#endif  // DEBUG
     return bits;
   };
 };
@@ -88,21 +92,42 @@ class WaitFreeHashMap {
   /// @param value An input value.
   /// @return True if the key is not in the hash map, False if the key is already there.
   bool insert(Key key, Value value);
+
+#ifdef BASIC_HASH_MAP
+#else
   /// @brief Update the value associated with a key that is present in the hash map.
   /// @param key The key has value to update.
   /// @param expected_value The value expected to be associated with this key.
   /// @param new_value The value to associate with this key.
   /// @return True if replace successfully, False if the key is not present in the hash map or if the key associated value does not match expected.
   bool update(Key key, Value expected_value, Value new_value);
+#endif  // BASIC_HASH_MAP
+
+#ifdef BASIC_HASH_MAP
+  /// @brief Traverse the hash map.
+  /// @param key An input key.
+  /// @param value Output value.
+  /// @return True if found, otherwise false.
+  bool get(Key key, Value& value);
+#else
   /// @brief Traverse the hash map.
   /// @param key An input key.
   /// @return The value associated with the key if key match, otherwise null.
   Value get(Key key);
+#endif  // BASIC_HASH_MAP
+
+#ifdef BASIC_HASH_MAP
+  /// @brief Remove a key-value pair that is present in the hash map.
+  /// @param key The key has value to remove.
+  /// @return True if remove successfully, False if the key is not present in the hash map.
+  bool remove(Key key);
+#else
   /// @brief Remove a key-value pair that is present in the hash map.
   /// @param key The key has value to remove.
   /// @param expected_value The value expected to be associated with this key.
   /// @return True if remove successfully, False if the key is not present in the hash map or if the key associated value does not match expected.
   bool remove(Key key, Value expected_value);
+#endif  // BASIC_HASH_MAP
 
  private:
   /// @brief Expand the map when there is a hash collision.
@@ -211,8 +236,14 @@ class WaitFreeHashMap {
   int array_length;
   int this_head_length;
   int max_fail_count = 128;
-  int max_dlist_size = 10;
+  std::size_t max_dlist_size = 10;
   HashFunctor hash_functor;
+
+ private:
+  MPI_Comm comm;
+  MPI_Win head;
+  MPI_Win array;
+  MPI_Win data;
 
  private:
   std::list<GPtr*> array_mem;
@@ -223,12 +254,6 @@ class WaitFreeHashMap {
   std::list<GPtr> rlist;
   std::list<GPtr> dlist;
   GPtr* head_arr;
-
- private:
-  MPI_Comm comm;
-  MPI_Win head;
-  MPI_Win array;
-  MPI_Win data;
 
   class DataNode {
     using HashValue = WaitFreeHashMap::HashValue;
@@ -302,6 +327,7 @@ inline WaitFreeHashMap<Key, Value, HashFunctor>::~WaitFreeHashMap() {
   for (typename std::list<DataNode*>::iterator it = data_mem.begin(); it != data_mem.end(); ++it) {
     delete *it;
   }
+  delete this->hp;
   MPI_Finalized(&flag);
   if (!flag) {
     MPI_Win_unlock_all(this->head);
@@ -320,6 +346,7 @@ bool WaitFreeHashMap<Key, Value, HashFunctor>::insert(Key key, Value value) {
   std::cout << "[" << this->myrank << "]" << ": inserting<" << key << "," << value << ">..." << std::endl;
 #endif  // DEBUG
   HashValue hash_value = hash_functor(key);
+  HashValue hash_value_temp = hash_value;
 
   HashValue head_bits;
   head_bits.set();
@@ -329,15 +356,17 @@ bool WaitFreeHashMap<Key, Value, HashFunctor>::insert(Key key, Value value) {
   GPtr local = null_gptr, node = null_gptr, insert_this = null_gptr;
   int position = 0;
 
-  for (int right = 0; right < this->key_size - this->array_pow; right += (right == 0) ? this->head_pow : this->array_pow) {
+  for (int right = 0; right < this->key_size;) {
     position = 0;
     int fail_count = 0;
     if (local == null_gptr) {
-      position = (hash_value & head_bits).to_ulong();
-      hash_value >>= this->head_pow;
+      position = (hash_value_temp & head_bits).to_ulong();
+      hash_value_temp >>= this->head_pow;
+      right += head_pow;
     } else {
-      position = (hash_value & array_bits).to_ulong();
-      hash_value >>= this->array_pow;
+      position = (hash_value_temp & array_bits).to_ulong();
+      hash_value_temp >>= this->array_pow;
+      right += array_pow;
     }
     node = this->getNode(local, position);
     while (true) {
@@ -379,7 +408,7 @@ bool WaitFreeHashMap<Key, Value, HashFunctor>::insert(Key key, Value value) {
   }
   this->free(insert_this);
   this->watch(null_gptr);
-  position = (hash_value & array_bits).to_ulong();
+  position = (hash_value_temp & array_bits).to_ulong();
   GPtr curr_node = this->getNode(local, position);
   if (curr_node == null_gptr) {
     insert_this = this->allocateNode(value, hash_value);
@@ -392,9 +421,14 @@ bool WaitFreeHashMap<Key, Value, HashFunctor>::insert(Key key, Value value) {
   } else
     return false;
 }
+#ifdef BASIC_HASH_MAP
+#else
+
 template <typename Key, typename Value, typename HashFunctor>
 inline bool WaitFreeHashMap<Key, Value, HashFunctor>::update(Key key, Value expected_value, Value new_value) {
   HashValue hash_value = hash_functor(key);
+  HashValue hash_value_temp = hash_value;
+
   HashValue head_bits;
   head_bits.set();
   HashValue array_bits = head_bits >> (this->key_size - this->array_pow);
@@ -406,15 +440,17 @@ inline bool WaitFreeHashMap<Key, Value, HashFunctor>::update(Key key, Value expe
   bool result = false;
   int right = 0;
 
-  for (right = 0; right < this->key_size - this->array_pow; right += (right == 0) ? this->head_pow : this->array_pow) {
+  for (right = 0; right < this->key_size;) {
     position = 0;
     int fail_count = 0;
     if (local == null_gptr) {
-      position = (hash_value & head_bits).to_ulong();
-      hash_value >>= this->head_pow;
+      position = (hash_value_temp & head_bits).to_ulong();
+      hash_value_temp >>= this->head_pow;
+      right += head_pow;
     } else {
-      position = (hash_value & array_bits).to_ulong();
-      hash_value >>= this->array_pow;
+      position = (hash_value_temp & array_bits).to_ulong();
+      hash_value_temp >>= this->array_pow;
+      right += array_pow;
     }
     node = this->getNode(local, position);
 
@@ -470,10 +506,10 @@ inline bool WaitFreeHashMap<Key, Value, HashFunctor>::update(Key key, Value expe
         break;
     }
   }
-  if (right >= this->key_size - array_pow) {
-    position = (hash_value & array_bits).to_ulong();
+  if (right >= this->key_size) {
+    position = (hash_value_temp & array_bits).to_ulong();
     GPtr curr_node = this->getNode(local, position);
-    if (curr_node != null_gptr)
+    if (curr_node != null_gptr) {
       if (this->getData(curr_node).value == expected_value) {
         insert_this = this->allocateNode(new_value, hash_value);
         result = (this->CAS(local, position, curr_node, insert_this) == curr_node);
@@ -484,10 +520,93 @@ inline bool WaitFreeHashMap<Key, Value, HashFunctor>::update(Key key, Value expe
       } else {
         result = false;
       }
+    }
   }
   this->watch(null_gptr);
   return result;
 }
+#endif  // BASIC_HASH_MAP
+#ifdef BASIC_HASH_MAP
+template <typename Key, typename Value, typename HashFunctor>
+bool WaitFreeHashMap<Key, Value, HashFunctor>::get(Key key, Value& value) {
+#ifdef DEBUG
+  std::cout << "[" << this->myrank << "]" << ": getting<" << key << ">..." << std::endl;
+#endif  // DEBUG
+  /*TODO: return null_gptr if no key match*/
+  HashValue hash_value = hash_functor(key);
+  HashValue hash_value_temp = hash_value;
+
+  HashValue head_bits;
+  head_bits.set();
+  HashValue array_bits = head_bits >> (this->key_size - this->array_pow);
+  head_bits >>= (this->key_size - this->head_pow);
+
+  GPtr local = null_gptr, node = null_gptr;
+  int position = 0;
+
+  bool result = false;
+  int right = 0;
+
+  for (right = 0; right < this->key_size;) {
+    position = 0;
+    int fail_count = 0;
+    if (local == null_gptr) {
+      position = (hash_value_temp & head_bits).to_ulong();
+      hash_value_temp >>= this->head_pow;
+      right += head_pow;
+    } else {
+      position = (hash_value_temp & array_bits).to_ulong();
+      hash_value_temp >>= this->array_pow;
+      right += array_pow;
+    }
+    node = this->getNode(local, position);
+
+    if (this->isArrayNode(node))
+      local = node;
+    else if (node == null_gptr)
+      break;
+    else {
+      this->watch(node);
+      if (node != this->getNode(local, position)) {
+        fail_count = 0;
+        while (node != this->getNode(local, position)) {
+          node = this->getNode(local, position);
+          this->watch(node);
+          ++fail_count;
+          if (fail_count > this->max_fail_count) {
+            this->markDataNode(local, position);
+            local = this->expandMap(local, position, right);
+            break;
+          }
+        }
+        if (this->isArrayNode(node)) {
+          local = node;
+          continue;
+        } else if (this->isMarked(node)) {
+          local = this->expandMap(local, position, right);
+          continue;
+        } else if (node == null_gptr)
+          break;
+      }
+      if (this->getData(node).hash_value == hash_value) /*hash_value vs hash_value_begin*/ {
+        value = ((this->getData(node)).value);
+        result = true;
+      }
+      break;
+    }
+  }
+  if (right >= this->key_size) {
+    position = (hash_value_temp & array_bits).to_ulong();
+    GPtr curr_node = this->getNode(local, position);
+    if (curr_node != null_gptr) {
+      value = ((this->getData(curr_node)).value);
+      result = true;
+    }
+  }
+  this->watch(null_gptr);
+  return result;
+}
+#else
 template <typename Key, typename Value, typename HashFunctor>
 Value WaitFreeHashMap<Key, Value, HashFunctor>::get(Key key) {
 #ifdef DEBUG
@@ -495,26 +614,30 @@ Value WaitFreeHashMap<Key, Value, HashFunctor>::get(Key key) {
 #endif  // DEBUG
   /*TODO: return null_gptr if no key match*/
   HashValue hash_value = hash_functor(key);
+  HashValue hash_value_temp = hash_value;
+
   HashValue head_bits;
   head_bits.set();
   HashValue array_bits = head_bits >> (this->key_size - this->array_pow);
   head_bits >>= (this->key_size - this->head_pow);
 
-  GPtr local = null_gptr, node = null_gptr, insert_this = null_gptr;
+  GPtr local = null_gptr, node = null_gptr;
   int position = 0;
 
   Value result{};
   int right = 0;
 
-  for (right = 0; right < this->key_size - this->array_pow; right += (right == 0) ? this->head_pow : this->array_pow) {
+  for (right = 0; right < this->key_size;) {
     position = 0;
     int fail_count = 0;
     if (local == null_gptr) {
-      position = (hash_value & head_bits).to_ulong();
-      hash_value >>= this->head_pow;
+      position = (hash_value_temp & head_bits).to_ulong();
+      hash_value_temp >>= this->head_pow;
+      right += head_pow;
     } else {
-      position = (hash_value & array_bits).to_ulong();
-      hash_value >>= this->array_pow;
+      position = (hash_value_temp & array_bits).to_ulong();
+      hash_value_temp >>= this->array_pow;
+      right += array_pow;
     }
     node = this->getNode(local, position);
 
@@ -551,8 +674,8 @@ Value WaitFreeHashMap<Key, Value, HashFunctor>::get(Key key) {
       break;
     }
   }
-  if (right >= this->key_size - array_pow) {
-    position = (hash_value & array_bits).to_ulong();
+  if (right >= this->key_size) {
+    position = (hash_value_temp & array_bits).to_ulong();
     GPtr curr_node = this->getNode(local, position);
     if (curr_node != null_gptr)
       result = ((this->getData(curr_node)).value);
@@ -560,9 +683,13 @@ Value WaitFreeHashMap<Key, Value, HashFunctor>::get(Key key) {
   this->watch(null_gptr);
   return result;
 }
+#endif  // BASIC_HASH_MAP
+#ifdef BASIC_HASH_MAP
 template <typename Key, typename Value, typename HashFunctor>
-bool WaitFreeHashMap<Key, Value, HashFunctor>::remove(Key key, Value expected_value) {
+bool WaitFreeHashMap<Key, Value, HashFunctor>::remove(Key key) {
   HashValue hash_value = hash_functor(key);
+  HashValue hash_value_temp = hash_value;
+
   HashValue head_bits;
   head_bits.set();
   HashValue array_bits = head_bits >> (this->key_size - this->array_pow);
@@ -574,15 +701,108 @@ bool WaitFreeHashMap<Key, Value, HashFunctor>::remove(Key key, Value expected_va
   bool result = false;
   int right = 0;
 
-  for (right = 0; right < this->key_size - this->array_pow; right += (right == 0) ? this->head_pow : this->array_pow) {
+  for (right = 0; right < this->key_size;) {
     position = 0;
     int fail_count = 0;
     if (local == null_gptr) {
-      position = (hash_value & head_bits).to_ulong();
-      hash_value >>= this->head_pow;
+      position = (hash_value_temp & head_bits).to_ulong();
+      hash_value_temp >>= this->head_pow;
+      right += head_pow;
     } else {
-      position = (hash_value & array_bits).to_ulong();
-      hash_value >>= this->array_pow;
+      position = (hash_value_temp & array_bits).to_ulong();
+      hash_value_temp >>= this->array_pow;
+      right += array_pow;
+    }
+    node = this->getNode(local, position);
+
+    if (this->isArrayNode(node))
+      local = node;
+    else if (this->isMarked(node))
+      local = this->expandMap(local, position, right);
+    else if (node == null_gptr)
+      break;
+    else {
+      this->watch(node);
+      if (node != this->getNode(local, position)) {
+        fail_count = 0;
+        while (node != this->getNode(local, position)) {
+          node = this->getNode(local, position);
+          this->watch(node);
+          ++fail_count;
+          if (fail_count > this->max_fail_count) {
+            this->markDataNode(local, position);
+            node = this->expandMap(local, position, right);
+            break;
+          }
+        }
+        if (this->isArrayNode(node)) {
+          local = node;
+          continue;
+        } else if (this->isMarked(node)) {
+          local = this->expandMap(local, position, right);
+          continue;
+        } else if (node == null_gptr)
+          break;
+      }
+      DataNode data_node = this->getData(node);
+      if (data_node.hash_value == hash_value) {
+        GPtr node2 = null_gptr;
+        if ((node2 = this->CAS(local, position, node, null_gptr)) == node) {
+          this->safeFreeNode(node);
+          result = true;
+          break;
+        } else {
+          if (this->isArrayNode(node2))
+            local = node2;
+          else if ((this->isMarked(node2) ^ this->unmark(node2)) == node)
+            local = this->expandMap(local, position, right);
+          else
+            break;
+        }
+      } else
+        break;
+    }
+  }
+  if (right >= this->key_size) {
+    position = (hash_value_temp & array_bits).to_ulong();
+    GPtr curr_node = this->getNode(local, position);
+    if (curr_node != null_gptr) {
+      result = (this->CAS(local, position, curr_node, null_gptr) == curr_node);
+      if (result == true)
+        this->safeFreeNode(curr_node);
+    }
+  }
+  this->watch(null_gptr);
+  return result;
+}
+#else
+template <typename Key, typename Value, typename HashFunctor>
+bool WaitFreeHashMap<Key, Value, HashFunctor>::remove(Key key, Value expected_value) {
+  HashValue hash_value = hash_functor(key);
+  HashValue hash_value_temp = hash_value;
+
+  HashValue head_bits;
+  head_bits.set();
+  HashValue array_bits = head_bits >> (this->key_size - this->array_pow);
+  head_bits >>= (this->key_size - this->head_pow);
+
+  GPtr local = null_gptr, node = null_gptr;
+  int position = 0;
+
+  bool result = false;
+  int right = 0;
+
+  for (right = 0; right < this->key_size;) {
+    position = 0;
+    int fail_count = 0;
+    if (local == null_gptr) {
+      position = (hash_value_temp & head_bits).to_ulong();
+      hash_value_temp >>= this->head_pow;
+      right += head_pow;
+    } else {
+      position = (hash_value_temp & array_bits).to_ulong();
+      hash_value_temp >>= this->array_pow;
+      right += array_pow;
     }
     node = this->getNode(local, position);
 
@@ -636,10 +856,10 @@ bool WaitFreeHashMap<Key, Value, HashFunctor>::remove(Key key, Value expected_va
         break;
     }
   }
-  if (right >= this->key_size - array_pow) {
-    position = (hash_value & array_bits).to_ulong();
+  if (right >= this->key_size) {
+    position = (hash_value_temp & array_bits).to_ulong();
     GPtr curr_node = this->getNode(local, position);
-    if (curr_node != null_gptr)
+    if (curr_node != null_gptr) {
       if (this->getData(curr_node).value == expected_value) {
         result = (this->CAS(local, position, curr_node, null_gptr) == curr_node);
         if (result == true)
@@ -647,10 +867,12 @@ bool WaitFreeHashMap<Key, Value, HashFunctor>::remove(Key key, Value expected_va
       } else {
         result = false;
       }
+    }
   }
   this->watch(null_gptr);
   return result;
 }
+#endif  // BASIC_HASH_MAP
 template <typename Key, typename Value, typename HashFunctor>
 inline typename WaitFreeHashMap<Key, Value, HashFunctor>::GPtr WaitFreeHashMap<Key, Value, HashFunctor>::expandMap(GPtr local, int position, int right) {
 #ifdef DEBUG
@@ -675,12 +897,10 @@ inline typename WaitFreeHashMap<Key, Value, HashFunctor>::GPtr WaitFreeHashMap<K
   MPI_Get_address(arr, &addr);
   GPtr a_node = this->makeGPtr(this->myrank, addr, 2);
 
-  HashValue hash_value = this->getData(node).hash_value;
+  HashValue hash_value_temp = this->getData(node).hash_value;
+  hash_value_temp >>= right;
 
-  int new_position;
-
-  new_position = (hash_value & array_bits).to_ulong();
-  hash_value >>= (this->array_pow);
+  int new_position = (hash_value_temp & array_bits).to_ulong();
   this->setNode(a_node, new_position, node);
   if ((node2 = this->CAS(local, position, node, a_node)) == node) {
     this->array_mem.push_back(arr);
@@ -694,7 +914,8 @@ inline typename WaitFreeHashMap<Key, Value, HashFunctor>::GPtr WaitFreeHashMap<K
 }
 template <typename Key, typename Value, typename HashFunctor>
 inline void WaitFreeHashMap<Key, Value, HashFunctor>::watch(GPtr node) {
-  *(this->hp) = node;
+  MPI_Accumulate(&node, sizeof(GPtr), MPI_CHAR, this->myrank, 0, sizeof(GPtr), MPI_CHAR, MPI_REPLACE, this->hp_win);
+  MPI_Win_flush(this->myrank, this->hp_win);
 }
 template <typename Key, typename Value, typename HashFunctor>
 inline void WaitFreeHashMap<Key, Value, HashFunctor>::free(GPtr node_to_free) {
@@ -724,14 +945,21 @@ inline typename WaitFreeHashMap<Key, Value, HashFunctor>::GPtr WaitFreeHashMap<K
   }
   MPI_Aint addr = 0;
   if (result == null_gptr) {
-    DataNode* data_node = new DataNode(hash_value, value);
+    DataNode* data_node;
+    try {
+      data_node = new DataNode();
+    } catch (const std::bad_alloc& e) {
+      std::cout << "   ------ [[Rank = " << this->myrank << "]: bad alloc: " << e.what() << std::endl;
+      while (true) {
+        sleep(10);
+      }
+    }
     this->data_mem.push_back(data_node);
     MPI_Win_attach(this->data, data_node, sizeof(DataNode));
     MPI_Get_address(data_node, &addr);
     result = this->makeGPtr(this->myrank, addr, 0);
-  } else {
-    this->setData(result, value, hash_value);
   }
+  this->setData(result, value, hash_value);
 #ifdef DEBUG
   std::cout << this->myrank << ":alloc<" << hash_value << "," << value << ">:" << result << std::endl;
 #endif  // DEBUG
@@ -886,7 +1114,8 @@ inline MPI_Aint WaitFreeHashMap<Key, Value, HashFunctor>::getDisp(GPtr node) {
   return ((node << 14) >> 16);
 }
 template <typename Key, typename Value, typename HashFunctor>
-inline typename WaitFreeHashMap<Key, Value, HashFunctor>::GPtr WaitFreeHashMap<Key, Value, HashFunctor>::CAS(GPtr local, int position, GPtr old_value, GPtr new_value) {
+inline typename WaitFreeHashMap<Key, Value, HashFunctor>::GPtr
+WaitFreeHashMap<Key, Value, HashFunctor>::CAS(GPtr local, int position, GPtr old_value, GPtr new_value) {
 #ifdef DEBUG
   std::cout << this->myrank << ": cas<" << local << "," << position << ">/new value: " << new_value << std::endl;
 #endif  // DEBUG
