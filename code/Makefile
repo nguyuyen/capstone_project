@@ -10,9 +10,9 @@ HOSTF = hosts
 
 CFLAG = -g -Wall -std=c++11 -lm
 
-NP=8
+NP = 8
 
-ARGS="1000 10 80 10"
+ARGS = 1000 10 80 10
 
 $(EXEF):
 	mkdir $(EXEF)
