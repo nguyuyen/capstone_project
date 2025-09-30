@@ -73,12 +73,18 @@ class TestResult {
 
 void print(TestResult test_result, bool brief) {
   if (brief == true) {
-    std::cout << "   --- " << test_result.name << " ---" << std::endl;
+    // std::cout << "   --- " << test_result.name << " ---" << std::endl;
+    // if (test_result.load_factor_in_percent != 0) {
+    //   std::cout << "Load factor: " << test_result.load_factor_in_percent / 100 << "." << test_result.load_factor_in_percent % 100 << std::endl;
+    // }
+    // std::cout << "   Throughput: " << test_result.throughput_in_ms << " op/ms" << std::endl;
+    // std::cout << "----------------------" << std::endl;
+
+    std::cout << test_result.name;
     if (test_result.load_factor_in_percent != 0) {
-      std::cout << "Load factor: " << test_result.load_factor_in_percent / 100 << "." << test_result.load_factor_in_percent % 100 << std::endl;
+      std::cout << "/" << test_result.load_factor_in_percent / 100 << "." << test_result.load_factor_in_percent % 100;
     }
-    std::cout << "   Throughput: " << test_result.throughput_in_ms << " op/ms" << std::endl;
-    std::cout << "----------------------" << std::endl;
+    std::cout << ": " << test_result.throughput_in_ms << " op/ms" << std::endl;
     return;
   }
   int op_weight_total = test_result.insert_weight + test_result.get_weight + test_result.remove_weight;
@@ -371,10 +377,10 @@ void benchmarkInsertedWFHM(HashMapWorkload workload) {
     hash_map.insert(insert_each_need * rank + i, rank);
   }
 
-  MPI_Barrier(MPI_COMM_WORLD);
-  if (rank == 0) {
-    std::cout << "Prev insert " << prev_insert << " done" << std::endl;
-  }
+  // MPI_Barrier(MPI_COMM_WORLD);
+  // if (rank == 0) {
+  //   std::cout << "Prev insert " << prev_insert << " done" << std::endl;
+  // }
   MPI_Barrier(MPI_COMM_WORLD);
 
   start = std::chrono::high_resolution_clock::now();
@@ -462,10 +468,10 @@ void benchmarkInsertedMHT(HashMapWorkload workload, int load_factor_in_percent) 
     hash_map.insert(insert_each_need * rank + i, rank);
   }
 
-  MPI_Barrier(MPI_COMM_WORLD);
-  if (rank == 0) {
-    std::cout << "Prev insert " << prev_insert << " done" << std::endl;
-  }
+  // MPI_Barrier(MPI_COMM_WORLD);
+  // if (rank == 0) {
+  //   std::cout << "Prev insert " << prev_insert << " done" << std::endl;
+  // }
   MPI_Barrier(MPI_COMM_WORLD);
 
   start = std::chrono::high_resolution_clock::now();
@@ -553,10 +559,10 @@ void benchmarkInsertedBCHT(HashMapWorkload workload, int load_factor_in_percent)
     hash_map.insert(insert_each_need * rank + i, rank);
   }
 
-  MPI_Barrier(MPI_COMM_WORLD);
-  if (rank == 0) {
-    std::cout << "Prev insert " << prev_insert << " done" << std::endl;
-  }
+  // MPI_Barrier(MPI_COMM_WORLD);
+  // if (rank == 0) {
+  //   std::cout << "Prev insert " << prev_insert << " done" << std::endl;
+  // }
   MPI_Barrier(MPI_COMM_WORLD);
 
   start = std::chrono::high_resolution_clock::now();
