@@ -1,7 +1,7 @@
 #ifndef DISTRIBUTED_DATA_STRUCTURE_TEST_BENCH_H
 #define DISTRIBUTED_DATA_STRUCTURE_TEST_BENCH_H
 
-#define COMM_CHECK
+#define MEM_CHECK
 
 #include <mpi.h>
 
@@ -61,9 +61,9 @@ class TestResult {
                                         remove_weight(remove_weight),
                                         succeed_op(succeed_op),
                                         throughput_in_ms(throughput_in_ms) {}
-#ifdef COMM_CHECK
+#ifdef MEM_CHECK
   void setMem(int mem_in_bytes) { this->mem_in_bytes = mem_in_bytes; }
-#endif  // COMM_CHECK
+#endif  // MEM_CHECK
   std::string name;
   int load_factor_in_percent;
   int nproc;
@@ -74,9 +74,9 @@ class TestResult {
   int remove_weight;
   int succeed_op;
   double throughput_in_ms;
-#ifdef COMM_CHECK
+#ifdef MEM_CHECK
   int mem_in_bytes;
-#endif  // COMM_CHECK
+#endif  // MEM_CHECK
 };
 
 void print(TestResult test_result, bool brief) {
@@ -108,9 +108,9 @@ void print(TestResult test_result, bool brief) {
   std::cout << "Remove weight: " << test_result.remove_weight << "/" << op_weight_total << std::endl;
   std::cout << "   Succeed op  : " << test_result.succeed_op << "/" << test_result.workload << std::endl;
   std::cout << "   Throughput  : " << test_result.throughput_in_ms << " op/ms" << std::endl;
-#ifdef COMM_CHECK
+#ifdef MEM_CHECK
   std::cout << "   Memory usage: " << test_result.mem_in_bytes * 1.0 / 1024 << " kB" << std::endl;
-#endif  // COMM_CHECK
+#endif  // MEM_CHECK
   std::cout << "----------------------" << std::endl;
 }
 
@@ -425,19 +425,19 @@ void benchmarkInsertedWFHM(HashMapWorkload workload) {
   MPI_Reduce(&op_number_each, &total_op, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce(&op_succeed_count, &total_op_succeed, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 
-#ifdef COMM_CHECK
+#ifdef MEM_CHECK
   int mem_in_bytes = hash_map.getMem();
   int total_mem_in_bytes;
   MPI_Reduce(&mem_in_bytes, &total_mem_in_bytes, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-#endif  // COMM_CHECK
+#endif  // MEM_CHECK
 
   double throughput = total_op * 1.0 / (total_time);
 
   if (rank == 0) {
     TestResult test_result("WFHM", 0, size, total_op, workload.total_operation, workload.insert_weight, workload.get_weight, workload.remove_weight, total_op_succeed, throughput * 1000);
-#ifdef COMM_CHECK
+#ifdef MEM_CHECK
     test_result.setMem(total_mem_in_bytes);
-#endif  // COMM_CHECK
+#endif  // MEM_CHECK
     print(test_result, true);
     // std::cout << "   --- WFHM ---" << std::endl;
     // std::cout << "Number of process: " << size << std::endl;
@@ -525,19 +525,19 @@ void benchmarkInsertedMHT(HashMapWorkload workload, int load_factor_in_percent) 
   MPI_Reduce(&op_number_each, &total_op, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce(&op_succeed_count, &total_op_succeed, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 
-#ifdef COMM_CHECK
+#ifdef MEM_CHECK
   int mem_in_bytes = hash_map.getMem();
   int total_mem_in_bytes;
   MPI_Reduce(&mem_in_bytes, &total_mem_in_bytes, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-#endif  // COMM_CHECK
+#endif  // MEM_CHECK
 
   double throughput = total_op * 1.0 / (total_time);
 
   if (rank == 0) {
     TestResult test_result("MHT", load_factor_in_percent, size, total_op, workload.total_operation, workload.insert_weight, workload.get_weight, workload.remove_weight, total_op_succeed, throughput * 1000);
-#ifdef COMM_CHECK
+#ifdef MEM_CHECK
     test_result.setMem(total_mem_in_bytes);
-#endif  // COMM_CHECK
+#endif  // MEM_CHECK
     print(test_result, true);
     // std::cout << "   --- MHT ---" << std::endl;
     // std::cout << "Number of process: " << size << std::endl;
@@ -625,19 +625,19 @@ void benchmarkInsertedBCHT(HashMapWorkload workload, int load_factor_in_percent)
   MPI_Reduce(&op_number_each, &total_op, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce(&op_succeed_count, &total_op_succeed, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 
-#ifdef COMM_CHECK
+#ifdef MEM_CHECK
   int mem_in_bytes = hash_map.getMem();
   int total_mem_in_bytes;
   MPI_Reduce(&mem_in_bytes, &total_mem_in_bytes, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-#endif  // COMM_CHECK
+#endif  // MEM_CHECK
 
   double throughput = total_op * 1.0 / (total_time);
 
   if (rank == 0) {
     TestResult test_result("BCHT", load_factor_in_percent, size, total_op, workload.total_operation, workload.insert_weight, workload.get_weight, workload.remove_weight, total_op_succeed, throughput * 1000);
-#ifdef COMM_CHECK
+#ifdef MEM_CHECK
     test_result.setMem(total_mem_in_bytes);
-#endif  // COMM_CHECK
+#endif  // MEM_CHECK
     print(test_result, true);
     // std::cout << "   --- BCHT ---" << std::endl;
     // std::cout << "Number of process: " << size << std::endl;

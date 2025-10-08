@@ -3,7 +3,7 @@
 
 #define BASIC_HASH_MAP
 
-#define COMM_CHECK
+// #define COMM_CHECK
 
 #include <mpi.h>
 #include <unistd.h>
