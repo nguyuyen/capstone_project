@@ -28,7 +28,7 @@ check:
 	$(CC) -o $(EXEF)/$(CLUSTER) $(CLUSTER).cpp $(CFLAG)
 
 run_check:
-	mpirun --np $(NP) --hostfile ./$(HOSTF) ./$(EXEF)/$(EXE) $(ARGS)
+	mpirun --np $(NP) --hostfile ./$(HOSTF) ./$(EXEF)/$(CLUSTER) $(ARGS)
 
 clean:
 	rm -rf $(EXEF)
