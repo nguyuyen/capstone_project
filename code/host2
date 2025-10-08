@@ -1,2 +1,2 @@
-MPI-node1
-MPI-node2
+MPI-node1:8
+MPI-node2:8

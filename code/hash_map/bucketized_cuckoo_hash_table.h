@@ -1,6 +1,8 @@
 #ifndef DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_BUCKETIZED_CUCKOO_HASHTABLE_H
 #define DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_BUCKETIZED_CUCKOO_HASHTABLE_H
 
+#define COMM_CHECK
+
 #ifdef DEBUG
 #include <unistd.h>
 #endif  // DEBUG
@@ -70,6 +72,22 @@ class BucketizedCuckooHashTable {
   bool get(Key key, Value& value);
   bool remove(Key key);
 
+  // #ifdef MEM_CHECK
+  int getMem() {
+    return (sizeof(GPtr) * this->table_length_each +  // table
+            sizeof(DataNode) * data_mem.size());      // data
+  }
+  // #endif  // MEM_CHECK
+
+#ifdef COMM_CHECK
+  int countIntra() {
+    return this->intra_comm_count;
+  }
+  int countInter() {
+    return this->inter_comm_count;
+  }
+#endif  // COMM_CHECK
+
  private:
   /// @brief Search key in 2 bucket
   /// @param key Key
@@ -78,46 +96,46 @@ class BucketizedCuckooHashTable {
   /// @return 0: hit node has same key, 1 empty slot, 2 full of slot
   int search(Key key, int& bucket, int& slot, Value& value);
   /// @brief Move item from source to target
-  /// @param source_bucket Source bucket 
+  /// @param source_bucket Source bucket
   /// @param source_slot Source slot
-  /// @param target_bucket Target bucket 
+  /// @param target_bucket Target bucket
   /// @param target_slot Target slot
   /// @return True if succeed, otherwise false.
   bool moveItem(int source_bucket, int source_slot, int target_bucket, int target_slot);
   /// @brief Help move item if source node isKickMarked.
-  /// @param source_bucket Source bucket 
+  /// @param source_bucket Source bucket
   /// @param source_slot Source slot
   /// @param source_node Source node
   void helper(int source_bucket, int source_slot, GPtr source_node);
   /// @brief Copy kick marked source node to target, them remove item at source.
-  /// @param source_bucket 
-  /// @param source_slot 
-  /// @param target_bucket 
-  /// @param target_slot 
-  /// @param kick_marked_node 
+  /// @param source_bucket
+  /// @param source_slot
+  /// @param target_bucket
+  /// @param target_slot
+  /// @param kick_marked_node
   /// @return True if succeed, otherwise false.
   bool copy(int source_bucket, int source_slot, int target_bucket, int target_slot, GPtr kick_marked_node);
   /// @brief Notify searching process that searched item may moved.
-  /// @param hash_value 
+  /// @param hash_value
   void setRetryIfHazard(uint64_t hash_value);
   /// @brief Search nearest empty slot from 2 bucket.
-  /// @param bucket1 
-  /// @param bucket2 
+  /// @param bucket1
+  /// @param bucket2
   /// @return Path code to move if found.
   SlotInfo slotSearch(int bucket1, int bucket2);
   /// @brief Find path to get empty slot
-  /// @param bucket1 
-  /// @param bucket2 
+  /// @param bucket1
+  /// @param bucket2
   /// @param path Output path.
   /// @return Depth of path.
   int pathSearch(int bucket1, int bucket2, std::array<CuckooRecord, max_depth_search>& path);
   /// @brief Move item along path to get empty slot
-  /// @param path 
-  /// @param depth 
+  /// @param path
+  /// @param depth
   /// @return True if succeed, otherwise false.
   bool moveAlongPath(std::array<CuckooRecord, max_depth_search>& path, int depth);
   /// @brief Check if key is duplicate, if yes, remove it
-  /// @param key 
+  /// @param key
   void checkDuplicateKey(Key key);
 
  private:
@@ -167,6 +185,13 @@ class BucketizedCuckooHashTable {
 #ifdef DEBUG_DUPLICATE
   int duplicate_count = 0;
 #endif  // DEBUG_DUPLICATE
+#ifdef COMM_CHECK
+  bool isIntra(int source_rank, int target_rank) {
+    return (source_rank / 8) == (target_rank / 8);
+  }
+  int intra_comm_count = 0;
+  int inter_comm_count = 0;
+#endif  // COMM_CHECK
 
  private:
   MPI_Comm comm;
@@ -832,6 +857,12 @@ inline typename BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2
 BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getNode(int bucket, int slot) {
   GPtr result = 2;
   int rank = this->getRankByBucket(bucket);
+#ifdef COMM_CHECK
+  if (isIntra(this->myrank, rank) == true)
+    ++(this->intra_comm_count);
+  else
+    ++(this->inter_comm_count);
+#endif  // COMM_CHECK
   int disp = this->getDispBySlot(bucket, slot);
   MPI_Get_accumulate(NULL, 0, MPI_INT, &result, sizeof(GPtr), MPI_CHAR, rank, disp, sizeof(GPtr), MPI_CHAR, MPI_NO_OP, this->table);
   MPI_Win_flush(rank, this->table);
@@ -840,6 +871,12 @@ BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>:
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
 inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getBucketData(int bucket, GPtr* arr) {
   int rank = this->getRankByBucket(bucket);
+#ifdef COMM_CHECK
+  if (isIntra(this->myrank, rank) == true)
+    ++(this->intra_comm_count);
+  else
+    ++(this->inter_comm_count);
+#endif  // COMM_CHECK
   int disp = this->getDispBySlot(bucket, 0);
   MPI_Get_accumulate(NULL, 0, MPI_INT, arr, sizeof(GPtr) * 4, MPI_CHAR, rank, disp, sizeof(GPtr) * 4, MPI_CHAR, MPI_NO_OP, this->table);
   MPI_Win_flush(rank, this->table);
@@ -849,6 +886,12 @@ inline typename BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2
 BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getData(GPtr node) {
   DataNode result;
   int rank = this->getRankt(node);
+#ifdef COMM_CHECK
+  if (isIntra(this->myrank, rank) == true)
+    ++(this->intra_comm_count);
+  else
+    ++(this->inter_comm_count);
+#endif  // COMM_CHECK
   if (rank >= this->nprocs) {
     std::cout << "[[Rank = " << this->myrank << "]: ??????: " << node << std::endl;
     while (true) {
@@ -864,6 +907,12 @@ template <typename Key, typename Value, typename HashFunctor1, typename HashFunc
 inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::setData(GPtr node, Key key, Value value) {
   DataNode data_node(key, value);
   int rank = this->getRankt(node);
+#ifdef COMM_CHECK
+  if (isIntra(this->myrank, rank) == true)
+    ++(this->intra_comm_count);
+  else
+    ++(this->inter_comm_count);
+#endif  // COMM_CHECK
   MPI_Aint disp = this->getDispt(node);
   MPI_Accumulate(&data_node, sizeof(DataNode), MPI_CHAR, rank, disp, sizeof(DataNode), MPI_CHAR, MPI_REPLACE, this->data);
   MPI_Win_flush(rank, this->data);
@@ -965,6 +1014,12 @@ inline bool BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, Ha
 #endif  // DEBUG
   GPtr result;
   int rank = this->getRankByBucket(bucket);
+#ifdef COMM_CHECK
+  if (isIntra(this->myrank, rank) == true)
+    ++(this->intra_comm_count);
+  else
+    ++(this->inter_comm_count);
+#endif  // COMM_CHECK
   MPI_Aint disp = this->getDispBySlot(bucket, slot);
   MPI_Compare_and_swap(&new_value, &old_value, &result, MPI_UINT64_T, rank, disp, this->table);
   MPI_Win_flush(rank, this->table);
@@ -1031,6 +1086,12 @@ inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, Ha
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
 inline uint64_t BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getHpRecord(int rank) {
+#ifdef COMM_CHECK
+  if (isIntra(this->myrank, rank) == true)
+    ++(this->intra_comm_count);
+  else
+    ++(this->inter_comm_count);
+#endif  // COMM_CHECK
   uint64_t result = 2;
   MPI_Get_accumulate(NULL, 0, MPI_INT, &result, sizeof(uint64_t), MPI_CHAR, rank, 0, sizeof(uint64_t), MPI_CHAR, MPI_NO_OP, this->hp_record_win);
   MPI_Win_flush(rank, this->hp_record_win);
@@ -1038,11 +1099,23 @@ inline uint64_t BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
 inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::setHpRecord(uint64_t hash_value) {
+#ifdef COMM_CHECK
+  if (isIntra(this->myrank, this->myrank) == true)
+    ++(this->intra_comm_count);
+  else
+    ++(this->inter_comm_count);
+#endif  // COMM_CHECK
   MPI_Accumulate(&hash_value, sizeof(uint64_t), MPI_CHAR, this->myrank, 0, sizeof(uint64_t), MPI_CHAR, MPI_REPLACE, this->hp_record_win);
   MPI_Win_flush(this->myrank, this->hp_win);
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
 inline uint64_t BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getHpFlag(int rank) {
+#ifdef COMM_CHECK
+  if (isIntra(this->myrank, rank) == true)
+    ++(this->intra_comm_count);
+  else
+    ++(this->inter_comm_count);
+#endif  // COMM_CHECK
   uint64_t result = 2;
   MPI_Get_accumulate(NULL, 0, MPI_INT, &result, sizeof(uint64_t), MPI_CHAR, rank, 0, sizeof(uint64_t), MPI_CHAR, MPI_NO_OP, this->hp_flag_win);
   MPI_Win_flush(rank, this->hp_flag_win);
@@ -1050,12 +1123,24 @@ inline uint64_t BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
 inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::setHpFlag(int rank, uint64_t hash_value) {
+#ifdef COMM_CHECK
+  if (isIntra(this->myrank, rank) == true)
+    ++(this->intra_comm_count);
+  else
+    ++(this->inter_comm_count);
+#endif  // COMM_CHECK
   MPI_Accumulate(&hash_value, sizeof(uint64_t), MPI_CHAR, rank, 0, sizeof(uint64_t), MPI_CHAR, MPI_REPLACE, this->hp_flag_win);
   MPI_Win_flush(rank, this->hp_flag_win);
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
 inline typename BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::GPtr
 BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getHPtr(int rank, int number) {
+#ifdef COMM_CHECK
+  if (isIntra(this->myrank, rank) == true)
+    ++(this->intra_comm_count);
+  else
+    ++(this->inter_comm_count);
+#endif  // COMM_CHECK
   GPtr result = 2;
   MPI_Get_accumulate(NULL, 0, MPI_INT, &result, sizeof(GPtr), MPI_CHAR, rank, number, sizeof(GPtr), MPI_CHAR, MPI_NO_OP, this->hp_win);
   MPI_Win_flush(rank, this->hp_win);
@@ -1063,6 +1148,12 @@ BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>:
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
 inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::setHPtr(GPtr node, int number) {
+#ifdef COMM_CHECK
+  if (isIntra(this->myrank, this->myrank) == true)
+    ++(this->intra_comm_count);
+  else
+    ++(this->inter_comm_count);
+#endif  // COMM_CHECK
   GPtr no_mark_node = this->unkickMarked(node);
   MPI_Accumulate(&no_mark_node, sizeof(GPtr), MPI_CHAR, this->myrank, number, sizeof(GPtr), MPI_CHAR, MPI_REPLACE, this->hp_win);
   MPI_Win_flush(this->myrank, this->hp_win);

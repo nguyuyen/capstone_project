@@ -1,6 +1,8 @@
 #ifndef DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_MICHEAL_HASHTABLE_H
 #define DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_MICHEAL_HASHTABLE_H
 
+#define COMM_CHECK
+
 #ifdef DEBUG
 #include <unistd.h>
 #endif  // DEBUG
@@ -68,6 +70,22 @@ class MichealHashTable {
   /// @param key The key has value to remove.
   /// @return True if remove successfully, False if the key is not present in the hash map.
   bool remove(Key key);
+
+  // #ifdef MEM_CHECK
+  int getMem() {
+    return (sizeof(GPtr) * this->table_length_each +  // table
+            sizeof(DataNode) * data_mem.size());      // data
+  }
+  // #endif  // MEM_CHECK
+
+#ifdef COMM_CHECK
+  int countIntra() {
+    return this->intra_comm_count;
+  }
+  int countInter() {
+    return this->inter_comm_count;
+  }
+#endif  // COMM_CHECK
 
  private:
   bool insertToList(GPtr head, Key key, Value value);
@@ -150,6 +168,14 @@ class MichealHashTable {
   HashFunctor hash_functor;
   KeyCompare key_order;
   std::size_t max_dlist_size = 10;
+
+#ifdef COMM_CHECK
+  bool isIntra(int source_rank, int target_rank) {
+    return (source_rank / 8) == (target_rank / 8);
+  }
+  int intra_comm_count = 0;
+  int inter_comm_count = 0;
+#endif  // COMM_CHECK
 
  private:
   MPI_Comm comm;
@@ -497,6 +523,12 @@ inline typename MichealHashTable<Key, Value, HashFunctor, KeyCompare>::DataNode
 MichealHashTable<Key, Value, HashFunctor, KeyCompare>::getData(GPtr node) {
   DataNode result;
   int rank = this->getRank(node);
+#ifdef COMM_CHECK
+  if (isIntra(this->myrank, rank) == true)
+    ++(this->intra_comm_count);
+  else
+    ++(this->inter_comm_count);
+#endif  // COMM_CHECK
   MPI_Aint disp = this->getDisp(node);
   MPI_Get_accumulate(NULL, 0, MPI_INT, &result, sizeof(DataNode), MPI_CHAR, rank, disp, sizeof(DataNode), MPI_CHAR, MPI_NO_OP, this->data);
   MPI_Win_flush(rank, this->data);
@@ -506,6 +538,12 @@ template <typename Key, typename Value, typename HashFunctor, typename KeyCompar
 inline void MichealHashTable<Key, Value, HashFunctor, KeyCompare>::setData(GPtr node, GPtr next, Key key, Value value) {
   DataNode data_node(key, value, next);
   int rank = this->getRank(node);
+#ifdef COMM_CHECK
+  if (isIntra(this->myrank, rank) == true)
+    ++(this->intra_comm_count);
+  else
+    ++(this->inter_comm_count);
+#endif  // COMM_CHECK
   MPI_Aint disp = this->getDisp(node);
   MPI_Accumulate(&data_node, sizeof(DataNode), MPI_CHAR, rank, disp, sizeof(DataNode), MPI_CHAR, MPI_REPLACE, this->data);
   MPI_Win_flush(rank, this->data);
@@ -585,6 +623,12 @@ inline void MichealHashTable<Key, Value, HashFunctor, KeyCompare>::scan() {
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
 inline typename MichealHashTable<Key, Value, HashFunctor, KeyCompare>::GPtr
 MichealHashTable<Key, Value, HashFunctor, KeyCompare>::getHPtr(int rank, int number) {
+#ifdef COMM_CHECK
+  if (isIntra(this->myrank, rank) == true)
+    ++(this->intra_comm_count);
+  else
+    ++(this->inter_comm_count);
+#endif  // COMM_CHECK
   GPtr result = 2;
   MPI_Get_accumulate(NULL, 0, MPI_INT, &result, sizeof(GPtr), MPI_CHAR, rank, number, sizeof(GPtr), MPI_CHAR, MPI_NO_OP, this->hp_win);
   MPI_Win_flush(rank, this->hp_win);
@@ -592,6 +636,12 @@ MichealHashTable<Key, Value, HashFunctor, KeyCompare>::getHPtr(int rank, int num
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
 inline void MichealHashTable<Key, Value, HashFunctor, KeyCompare>::setHPtr(GPtr node, int number) {
+#ifdef COMM_CHECK
+  if (isIntra(this->myrank, this->myrank) == true)
+    ++(this->intra_comm_count);
+  else
+    ++(this->inter_comm_count);
+#endif  // COMM_CHECK
   MPI_Accumulate(&node, sizeof(GPtr), MPI_CHAR, this->myrank, number, sizeof(GPtr), MPI_CHAR, MPI_REPLACE, this->hp_win);
   MPI_Win_flush(this->myrank, this->hp_win);
 }
@@ -605,9 +655,12 @@ inline typename MichealHashTable<Key, Value, HashFunctor, KeyCompare>::GPtr
 MichealHashTable<Key, Value, HashFunctor, KeyCompare>::getHeadNode(int position) {
   int rank = position / this->table_length_each;
   int disp = position % this->table_length_each;
-
-  // int rank = position % this->nprocs;
-  // int disp = position / this->nprocs;
+#ifdef COMM_CHECK
+  if (isIntra(this->myrank, rank) == true)
+    ++(this->intra_comm_count);
+  else
+    ++(this->inter_comm_count);
+#endif  // COMM_CHECK
 #ifdef DEBUG
   std::cout << "[Rank = " << this->myrank << "]: " << "get head: at rank = " << rank << ", disp = " << disp << std::endl;
 #endif  // DEBUG
@@ -638,6 +691,12 @@ inline bool MichealHashTable<Key, Value, HashFunctor, KeyCompare>::CASNext(GPtr 
 #endif  // DEBUG
   GPtr result;
   int rank = this->getRank(curr);
+#ifdef COMM_CHECK
+  if (isIntra(this->myrank, rank) == true)
+    ++(this->intra_comm_count);
+  else
+    ++(this->inter_comm_count);
+#endif  // COMM_CHECK
   MPI_Aint disp = this->getDisp(curr);
   MPI_Compare_and_swap(&new_next, &old_next, &result, MPI_UINT64_T, rank, disp, this->data);
   MPI_Win_flush(rank, this->data);
@@ -665,6 +724,12 @@ inline typename MichealHashTable<Key, Value, HashFunctor, KeyCompare>::GPtr
 MichealHashTable<Key, Value, HashFunctor, KeyCompare>::getNextNode(GPtr node) {
   GPtr result;
   int rank = this->getRank(node);
+#ifdef COMM_CHECK
+  if (isIntra(this->myrank, rank) == true)
+    ++(this->intra_comm_count);
+  else
+    ++(this->inter_comm_count);
+#endif  // COMM_CHECK
   MPI_Aint disp = this->getDisp(node);
   MPI_Get_accumulate(NULL, 0, MPI_INT, &result, sizeof(GPtr), MPI_CHAR, rank, disp, sizeof(GPtr), MPI_CHAR, MPI_NO_OP, this->data);
   MPI_Win_flush(rank, this->data);

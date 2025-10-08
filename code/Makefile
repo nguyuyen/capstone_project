@@ -3,6 +3,7 @@ CC = mpic++
 EXEF = exe
 
 FILE = test
+CLUSTER = cluster_check
 
 SRC = $(FILE).cpp
 EXE = $(FILE)
@@ -21,6 +22,12 @@ compile: $(SRC) $(EXEF)
 	$(CC) -o $(EXEF)/$(EXE) $(SRC) $(CFLAG)
 
 run: $(EXEF)/$(EXE)
+	mpirun --np $(NP) --hostfile ./$(HOSTF) ./$(EXEF)/$(EXE) $(ARGS)
+
+check:
+	$(CC) -o $(EXEF)/$(CLUSTER) $(CLUSTER).cpp $(CFLAG)
+
+run_check:
 	mpirun --np $(NP) --hostfile ./$(HOSTF) ./$(EXEF)/$(EXE) $(ARGS)
 
 clean:

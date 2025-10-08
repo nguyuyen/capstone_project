@@ -3,6 +3,8 @@
 
 #define BASIC_HASH_MAP
 
+#define COMM_CHECK
+
 #include <mpi.h>
 #include <unistd.h>
 
@@ -129,6 +131,23 @@ class WaitFreeHashMap {
   bool remove(Key key, Value expected_value);
 #endif  // BASIC_HASH_MAP
 
+  // #ifdef MEM_CHECK
+  int getMem() {
+    return (sizeof(GPtr) * this->this_head_length +                       // head
+            sizeof(GPtr) * this->array_length * this->array_mem.size() +  // array
+            sizeof(DataNode) * data_mem.size());                          // data
+  }
+  // #endif  // MEM_CHECK
+
+#ifdef COMM_CHECK
+  int countIntra() {
+    return this->intra_comm_count;
+  }
+  int countInter() {
+    return this->inter_comm_count;
+  }
+#endif  // COMM_CHECK
+
  private:
   /// @brief Expand the map when there is a hash collision.
   /// @param local Address need to expand.
@@ -235,9 +254,17 @@ class WaitFreeHashMap {
   /// @brief Length of all Array Node
   int array_length;
   int this_head_length;
-  int max_fail_count = 128;
+  int max_fail_count = 10;
   std::size_t max_dlist_size = 10;
   HashFunctor hash_functor;
+
+#ifdef COMM_CHECK
+  bool isIntra(int source_rank, int target_rank) {
+    return (source_rank / 8) == (target_rank / 8);
+  }
+  int intra_comm_count = 0;
+  int inter_comm_count = 0;
+#endif  // COMM_CHECK
 
  private:
   MPI_Comm comm;
@@ -296,7 +323,7 @@ inline WaitFreeHashMap<Key, Value, HashFunctor>::WaitFreeHashMap(MPI_Comm comm) 
   }
 #endif  // DEBUG
   // Create windows
-  this->head_arr = new GPtr[this->head_length]();
+  this->head_arr = new GPtr[this->this_head_length]();
   MPI_Win_create(this->head_arr, this->this_head_length * sizeof(GPtr), sizeof(GPtr), MPI_INFO_NULL, comm, &this->head);
   MPI_Win_create_dynamic(MPI_INFO_NULL, comm, &this->array);
   MPI_Win_create_dynamic(MPI_INFO_NULL, comm, &this->data);
@@ -914,6 +941,12 @@ inline typename WaitFreeHashMap<Key, Value, HashFunctor>::GPtr WaitFreeHashMap<K
 }
 template <typename Key, typename Value, typename HashFunctor>
 inline void WaitFreeHashMap<Key, Value, HashFunctor>::watch(GPtr node) {
+#ifdef COMM_CHECK
+  if (isIntra(this->myrank, this->myrank) == true)
+    ++(this->intra_comm_count);
+  else
+    ++(this->inter_comm_count);
+#endif  // COMM_CHECK
   MPI_Accumulate(&node, sizeof(GPtr), MPI_CHAR, this->myrank, 0, sizeof(GPtr), MPI_CHAR, MPI_REPLACE, this->hp_win);
   MPI_Win_flush(this->myrank, this->hp_win);
 }
@@ -992,11 +1025,23 @@ inline typename WaitFreeHashMap<Key, Value, HashFunctor>::GPtr WaitFreeHashMap<K
   GPtr result = 2;
   if (local == null_gptr) {
     int rank = this->getHeadRank(pos);
+#ifdef COMM_CHECK
+    if (isIntra(this->myrank, rank) == true)
+      ++(this->intra_comm_count);
+    else
+      ++(this->inter_comm_count);
+#endif  // COMM_CHECK
     MPI_Aint disp = this->getHeadDisp(pos);
     MPI_Get_accumulate(NULL, 0, MPI_INT, &result, sizeof(GPtr), MPI_CHAR, rank, disp, sizeof(GPtr), MPI_CHAR, MPI_NO_OP, this->head);
     MPI_Win_flush(rank, this->head);
   } else {
     int rank = this->getRank(local);
+#ifdef COMM_CHECK
+    if (isIntra(this->myrank, rank) == true)
+      ++(this->intra_comm_count);
+    else
+      ++(this->inter_comm_count);
+#endif  // COMM_CHECK
     MPI_Aint disp = this->getDisp(local) + pos * sizeof(GPtr);
     MPI_Get_accumulate(NULL, 0, MPI_INT, &result, sizeof(GPtr), MPI_CHAR, rank, disp, sizeof(GPtr), MPI_CHAR, MPI_NO_OP, this->array);
     MPI_Win_flush(rank, this->array);
@@ -1013,11 +1058,23 @@ inline void WaitFreeHashMap<Key, Value, HashFunctor>::setNode(GPtr local, int po
 #endif  // DEBUG
   if (local == null_gptr) {
     int rank = this->getHeadRank(position);
+#ifdef COMM_CHECK
+    if (isIntra(this->myrank, rank) == true)
+      ++(this->intra_comm_count);
+    else
+      ++(this->inter_comm_count);
+#endif  // COMM_CHECK
     MPI_Aint disp = this->getHeadDisp(position);
     MPI_Accumulate(&node, 1, MPI_UINT64_T, rank, disp, 1, MPI_UINT64_T, MPI_REPLACE, this->head);
     MPI_Win_flush(rank, this->head);
   } else {
     int rank = this->getRank(local);
+#ifdef COMM_CHECK
+    if (isIntra(this->myrank, rank) == true)
+      ++(this->intra_comm_count);
+    else
+      ++(this->inter_comm_count);
+#endif  // COMM_CHECK
     MPI_Aint disp = this->getDisp(local) + position * sizeof(GPtr);
     MPI_Accumulate(&node, 1, MPI_UINT64_T, rank, disp, 1, MPI_UINT64_T, MPI_REPLACE, this->array);
     MPI_Win_flush(rank, this->array);
@@ -1030,6 +1087,12 @@ template <typename Key, typename Value, typename HashFunctor>
 inline typename WaitFreeHashMap<Key, Value, HashFunctor>::DataNode WaitFreeHashMap<Key, Value, HashFunctor>::getData(GPtr node) {
   DataNode result;
   int rank = this->getRank(node);
+#ifdef COMM_CHECK
+  if (isIntra(this->myrank, rank) == true)
+    ++(this->intra_comm_count);
+  else
+    ++(this->inter_comm_count);
+#endif  // COMM_CHECK
   MPI_Aint disp = this->getDisp(node);
   MPI_Get_accumulate(NULL, 0, MPI_INT, &result, sizeof(DataNode), MPI_CHAR, rank, disp, sizeof(DataNode), MPI_CHAR, MPI_NO_OP, this->data);
   MPI_Win_flush(rank, this->data);
@@ -1042,6 +1105,12 @@ template <typename Key, typename Value, typename HashFunctor>
 inline void WaitFreeHashMap<Key, Value, HashFunctor>::setData(GPtr node, Value value, HashValue hash_value) {
   DataNode data_node(hash_value, value);
   int rank = this->getRank(node);
+#ifdef COMM_CHECK
+  if (isIntra(this->myrank, rank) == true)
+    ++(this->intra_comm_count);
+  else
+    ++(this->inter_comm_count);
+#endif  // COMM_CHECK
   MPI_Aint disp = this->getDisp(node);
   MPI_Accumulate(&data_node, sizeof(DataNode), MPI_CHAR, rank, disp, sizeof(DataNode), MPI_CHAR, MPI_REPLACE, this->data);
   MPI_Win_flush(rank, this->data);
@@ -1071,11 +1140,23 @@ inline typename WaitFreeHashMap<Key, Value, HashFunctor>::GPtr WaitFreeHashMap<K
   GPtr m = 1;
   if (local == null_gptr) {
     int rank = this->getHeadRank(pos);
+#ifdef COMM_CHECK
+    if (isIntra(this->myrank, rank) == true)
+      ++(this->intra_comm_count);
+    else
+      ++(this->inter_comm_count);
+#endif  // COMM_CHECK
     MPI_Aint disp = this->getHeadDisp(pos);
     MPI_Fetch_and_op(&m, NULL, MPI_UINT64_T, rank, disp, MPI_BOR, this->head);
     MPI_Win_flush(rank, this->head);
   } else {
     int rank = this->getRank(local);
+#ifdef COMM_CHECK
+    if (isIntra(this->myrank, rank) == true)
+      ++(this->intra_comm_count);
+    else
+      ++(this->inter_comm_count);
+#endif  // COMM_CHECK
     MPI_Aint disp = this->getDisp(local) + pos * sizeof(GPtr);
     MPI_Fetch_and_op(&m, NULL, MPI_UINT64_T, rank, disp, MPI_BOR, this->array);
     MPI_Win_flush(rank, this->array);
@@ -1088,6 +1169,12 @@ inline typename WaitFreeHashMap<Key, Value, HashFunctor>::GPtr WaitFreeHashMap<K
 }
 template <typename Key, typename Value, typename HashFunctor>
 inline typename WaitFreeHashMap<Key, Value, HashFunctor>::GPtr WaitFreeHashMap<Key, Value, HashFunctor>::getHPtr(int rank) {
+#ifdef COMM_CHECK
+  if (isIntra(this->myrank, rank) == true)
+    ++(this->intra_comm_count);
+  else
+    ++(this->inter_comm_count);
+#endif  // COMM_CHECK
   GPtr result = 2;
   MPI_Get_accumulate(NULL, 0, MPI_INT, &result, sizeof(GPtr), MPI_CHAR, rank, 0, sizeof(GPtr), MPI_CHAR, MPI_NO_OP, this->hp_win);
   MPI_Win_flush(rank, this->hp_win);
@@ -1122,11 +1209,23 @@ WaitFreeHashMap<Key, Value, HashFunctor>::CAS(GPtr local, int position, GPtr old
   GPtr result;
   if (local == null_gptr) {
     int rank = this->getHeadRank(position);
+#ifdef COMM_CHECK
+    if (isIntra(this->myrank, rank) == true)
+      ++(this->intra_comm_count);
+    else
+      ++(this->inter_comm_count);
+#endif  // COMM_CHECK
     MPI_Aint disp = this->getHeadDisp(position);
     MPI_Compare_and_swap(&new_value, &old_value, &result, MPI_UINT64_T, rank, disp, this->head);
     MPI_Win_flush(rank, this->head);
   } else {
     int rank = this->getRank(local);
+#ifdef COMM_CHECK
+    if (isIntra(this->myrank, rank) == true)
+      ++(this->intra_comm_count);
+    else
+      ++(this->inter_comm_count);
+#endif  // COMM_CHECK
     MPI_Aint disp = this->getDisp(local) + position * sizeof(GPtr);
     MPI_Compare_and_swap(&new_value, &old_value, &result, MPI_UINT64_T, rank, disp, this->array);
     MPI_Win_flush(rank, this->array);

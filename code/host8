@@ -1,8 +1,8 @@
-MPI-node1
-MPI-node2
-MPI-node3
-MPI-node4
-MPI-node5
-MPI-node6
-MPI-node7
-MPI-node8
+MPI-node1:8
+MPI-node2:8
+MPI-node3:8
+MPI-node4:8
+MPI-node5:8
+MPI-node6:8
+MPI-node7:8
+MPI-node8:8

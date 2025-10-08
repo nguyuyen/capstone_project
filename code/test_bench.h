@@ -1,6 +1,8 @@
 #ifndef DISTRIBUTED_DATA_STRUCTURE_TEST_BENCH_H
 #define DISTRIBUTED_DATA_STRUCTURE_TEST_BENCH_H
 
+#define COMM_CHECK
+
 #include <mpi.h>
 
 #include <chrono>
@@ -59,6 +61,9 @@ class TestResult {
                                         remove_weight(remove_weight),
                                         succeed_op(succeed_op),
                                         throughput_in_ms(throughput_in_ms) {}
+#ifdef COMM_CHECK
+  void setMem(int mem_in_bytes) { this->mem_in_bytes = mem_in_bytes; }
+#endif  // COMM_CHECK
   std::string name;
   int load_factor_in_percent;
   int nproc;
@@ -69,6 +74,9 @@ class TestResult {
   int remove_weight;
   int succeed_op;
   double throughput_in_ms;
+#ifdef COMM_CHECK
+  int mem_in_bytes;
+#endif  // COMM_CHECK
 };
 
 void print(TestResult test_result, bool brief) {
@@ -98,8 +106,11 @@ void print(TestResult test_result, bool brief) {
   std::cout << "Insert weight: " << test_result.insert_weight << "/" << op_weight_total << std::endl;
   std::cout << "Get weight   : " << test_result.get_weight << "/" << op_weight_total << std::endl;
   std::cout << "Remove weight: " << test_result.remove_weight << "/" << op_weight_total << std::endl;
-  std::cout << "   Succeed op: " << test_result.succeed_op << "/" << test_result.workload << std::endl;
-  std::cout << "   Throughput: " << test_result.throughput_in_ms << " op/ms" << std::endl;
+  std::cout << "   Succeed op  : " << test_result.succeed_op << "/" << test_result.workload << std::endl;
+  std::cout << "   Throughput  : " << test_result.throughput_in_ms << " op/ms" << std::endl;
+#ifdef COMM_CHECK
+  std::cout << "   Memory usage: " << test_result.mem_in_bytes * 1.0 / 1024 << " kB" << std::endl;
+#endif  // COMM_CHECK
   std::cout << "----------------------" << std::endl;
 }
 
@@ -116,11 +127,11 @@ void benchmarkWFHM(HashMapWorkload workload) {
   int op_weight_total = workload.insert_weight + workload.get_weight + workload.remove_weight;
 
   std::random_device rd_key;
-  std::mt19937 gen_key(rd_key());
+  std::mt19937 gen_key(rd_key() + rank);
   std::uniform_int_distribution<> distr_key(0, workload.total_operation - 1);
 
   std::random_device rd_op;
-  std::mt19937 gen_op(rd_op());
+  std::mt19937 gen_op(rd_op() + rank);
   std::uniform_int_distribution<> distr_op(0, op_weight_total - 1);
 
   int op_number_each = workload.total_operation / size;
@@ -192,11 +203,11 @@ void benchmarkMHT(HashMapWorkload workload, int load_factor_in_percent) {
   int op_weight_total = workload.insert_weight + workload.get_weight + workload.remove_weight;
 
   std::random_device rd_key;
-  std::mt19937 gen_key(rd_key());
+  std::mt19937 gen_key(rd_key() + rank);
   std::uniform_int_distribution<> distr_key(0, workload.total_operation - 1);
 
   std::random_device rd_op;
-  std::mt19937 gen_op(rd_op());
+  std::mt19937 gen_op(rd_op() + rank);
   std::uniform_int_distribution<> distr_op(0, op_weight_total - 1);
 
   int op_number_each = workload.total_operation / size;
@@ -274,11 +285,11 @@ void benchmarkBCHT(HashMapWorkload workload, int load_factor_in_percent) {
   int op_weight_total = workload.insert_weight + workload.get_weight + workload.remove_weight;
 
   std::random_device rd_key;
-  std::mt19937 gen_key(rd_key());
+  std::mt19937 gen_key(rd_key() + rank);
   std::uniform_int_distribution<> distr_key(0, workload.total_operation - 1);
 
   std::random_device rd_op;
-  std::mt19937 gen_op(rd_op());
+  std::mt19937 gen_op(rd_op() + rank);
   std::uniform_int_distribution<> distr_op(0, op_weight_total - 1);
 
   int op_number_each = workload.total_operation / size;
@@ -354,11 +365,11 @@ void benchmarkInsertedWFHM(HashMapWorkload workload) {
   int op_weight_total = workload.insert_weight + workload.get_weight + workload.remove_weight;
 
   std::random_device rd_key;
-  std::mt19937 gen_key(rd_key());
+  std::mt19937 gen_key(rd_key() + rank);
   std::uniform_int_distribution<> distr_key(0, workload.total_operation - 1);
 
   std::random_device rd_op;
-  std::mt19937 gen_op(rd_op());
+  std::mt19937 gen_op(rd_op() + rank);
   std::uniform_int_distribution<> distr_op(0, op_weight_total - 1);
 
   int op_number_each = workload.total_operation / size;
@@ -414,10 +425,19 @@ void benchmarkInsertedWFHM(HashMapWorkload workload) {
   MPI_Reduce(&op_number_each, &total_op, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce(&op_succeed_count, &total_op_succeed, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 
+#ifdef COMM_CHECK
+  int mem_in_bytes = hash_map.getMem();
+  int total_mem_in_bytes;
+  MPI_Reduce(&mem_in_bytes, &total_mem_in_bytes, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+#endif  // COMM_CHECK
+
   double throughput = total_op * 1.0 / (total_time);
 
   if (rank == 0) {
     TestResult test_result("WFHM", 0, size, total_op, workload.total_operation, workload.insert_weight, workload.get_weight, workload.remove_weight, total_op_succeed, throughput * 1000);
+#ifdef COMM_CHECK
+    test_result.setMem(total_mem_in_bytes);
+#endif  // COMM_CHECK
     print(test_result, true);
     // std::cout << "   --- WFHM ---" << std::endl;
     // std::cout << "Number of process: " << size << std::endl;
@@ -444,11 +464,11 @@ void benchmarkInsertedMHT(HashMapWorkload workload, int load_factor_in_percent) 
   int op_weight_total = workload.insert_weight + workload.get_weight + workload.remove_weight;
 
   std::random_device rd_key;
-  std::mt19937 gen_key(rd_key());
+  std::mt19937 gen_key(rd_key() + rank);
   std::uniform_int_distribution<> distr_key(0, workload.total_operation - 1);
 
   std::random_device rd_op;
-  std::mt19937 gen_op(rd_op());
+  std::mt19937 gen_op(rd_op() + rank);
   std::uniform_int_distribution<> distr_op(0, op_weight_total - 1);
 
   int op_number_each = workload.total_operation / size;
@@ -505,10 +525,19 @@ void benchmarkInsertedMHT(HashMapWorkload workload, int load_factor_in_percent) 
   MPI_Reduce(&op_number_each, &total_op, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce(&op_succeed_count, &total_op_succeed, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 
+#ifdef COMM_CHECK
+  int mem_in_bytes = hash_map.getMem();
+  int total_mem_in_bytes;
+  MPI_Reduce(&mem_in_bytes, &total_mem_in_bytes, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+#endif  // COMM_CHECK
+
   double throughput = total_op * 1.0 / (total_time);
 
   if (rank == 0) {
     TestResult test_result("MHT", load_factor_in_percent, size, total_op, workload.total_operation, workload.insert_weight, workload.get_weight, workload.remove_weight, total_op_succeed, throughput * 1000);
+#ifdef COMM_CHECK
+    test_result.setMem(total_mem_in_bytes);
+#endif  // COMM_CHECK
     print(test_result, true);
     // std::cout << "   --- MHT ---" << std::endl;
     // std::cout << "Number of process: " << size << std::endl;
@@ -536,11 +565,11 @@ void benchmarkInsertedBCHT(HashMapWorkload workload, int load_factor_in_percent)
   int op_weight_total = workload.insert_weight + workload.get_weight + workload.remove_weight;
 
   std::random_device rd_key;
-  std::mt19937 gen_key(rd_key());
+  std::mt19937 gen_key(rd_key() + rank);
   std::uniform_int_distribution<> distr_key(0, workload.total_operation - 1);
 
   std::random_device rd_op;
-  std::mt19937 gen_op(rd_op());
+  std::mt19937 gen_op(rd_op() + rank);
   std::uniform_int_distribution<> distr_op(0, op_weight_total - 1);
 
   int op_number_each = workload.total_operation / size;
@@ -596,10 +625,19 @@ void benchmarkInsertedBCHT(HashMapWorkload workload, int load_factor_in_percent)
   MPI_Reduce(&op_number_each, &total_op, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce(&op_succeed_count, &total_op_succeed, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 
+#ifdef COMM_CHECK
+  int mem_in_bytes = hash_map.getMem();
+  int total_mem_in_bytes;
+  MPI_Reduce(&mem_in_bytes, &total_mem_in_bytes, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+#endif  // COMM_CHECK
+
   double throughput = total_op * 1.0 / (total_time);
 
   if (rank == 0) {
     TestResult test_result("BCHT", load_factor_in_percent, size, total_op, workload.total_operation, workload.insert_weight, workload.get_weight, workload.remove_weight, total_op_succeed, throughput * 1000);
+#ifdef COMM_CHECK
+    test_result.setMem(total_mem_in_bytes);
+#endif  // COMM_CHECK
     print(test_result, true);
     // std::cout << "   --- BCHT ---" << std::endl;
     // std::cout << "Number of process: " << size << std::endl;
