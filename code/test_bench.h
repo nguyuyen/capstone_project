@@ -92,7 +92,11 @@ void print(TestResult test_result, bool brief) {
     if (test_result.load_factor_in_percent != 0) {
       std::cout << "/" << test_result.load_factor_in_percent / 100 << "." << test_result.load_factor_in_percent % 100;
     }
-    std::cout << ": " << test_result.throughput_in_ms << " op/ms" << std::endl;
+    std::cout << ": " << test_result.throughput_in_ms << " op/ms";
+#ifdef MEM_CHECK
+    std::cout << ", " << test_result.mem_in_bytes * 1.0 / 1024 << " kB";
+#endif  // MEM_CHECK
+    std::cout << std::endl;
     return;
   }
   int op_weight_total = test_result.insert_weight + test_result.get_weight + test_result.remove_weight;
