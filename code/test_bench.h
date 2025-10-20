@@ -90,7 +90,7 @@ void print(TestResult test_result, bool brief) {
     if (test_result.load_factor_in_percent != 0) {
       std::cout << "/" << test_result.load_factor_in_percent / 100 << "." << test_result.load_factor_in_percent % 100;
     }
-    std::cout << ": " << test_result.throughput_in_ms << " op/ms";
+    std::cout << ": " << test_result.throughput_in_ms * 1000 << " ops/s";
 #ifdef MEM_CHECK
     std::cout << ", " << test_result.mem_in_bytes * 1.0 / 1024 << " kB";
 #endif  // MEM_CHECK
@@ -109,7 +109,7 @@ void print(TestResult test_result, bool brief) {
   std::cout << "Get weight   : " << test_result.get_weight << "/" << op_weight_total << std::endl;
   std::cout << "Remove weight: " << test_result.remove_weight << "/" << op_weight_total << std::endl;
   std::cout << "   Succeed op  : " << test_result.succeed_op << "/" << test_result.workload << std::endl;
-  std::cout << "   Throughput  : " << test_result.throughput_in_ms << " op/ms" << std::endl;
+  std::cout << "   Throughput  : " << test_result.throughput_in_ms * 1000 << " ops/s" << std::endl;
 #ifdef MEM_CHECK
   std::cout << "   Memory usage: " << test_result.mem_in_bytes * 1.0 / 1024 << " kB" << std::endl;
 #endif  // MEM_CHECK
@@ -201,7 +201,9 @@ void benchmarkInsertedLFDHM(HashMapWorkload workload) {
   double throughput = total_op * 1.0 / (total_time);
 
   if (rank == 0) {
-    TestResult test_result("LFDHM", 0, size, total_op, workload.total_operation, workload.insert_weight, workload.get_weight, workload.remove_weight, total_op_succeed, throughput * 1000);
+    TestResult test_result("LFDHM", 0, size, total_op, workload.total_operation,
+                           workload.insert_weight, workload.get_weight, workload.remove_weight,
+                           total_op_succeed, throughput * 1000);
 #ifdef MEM_CHECK
     test_result.setMem(total_mem_in_bytes);
 #endif  // MEM_CHECK
@@ -304,7 +306,9 @@ void benchmarkInsertedMHT(HashMapWorkload workload, int load_factor_in_percent) 
   double throughput = total_op * 1.0 / (total_time);
 
   if (rank == 0) {
-    TestResult test_result("MHT", load_factor_in_percent, size, total_op, workload.total_operation, workload.insert_weight, workload.get_weight, workload.remove_weight, total_op_succeed, throughput * 1000);
+    TestResult test_result("MHT", load_factor_in_percent, size, total_op, workload.total_operation,
+                           workload.insert_weight, workload.get_weight, workload.remove_weight,
+                           total_op_succeed, throughput * 1000);
 #ifdef MEM_CHECK
     test_result.setMem(total_mem_in_bytes);
 #endif  // MEM_CHECK
@@ -407,7 +411,9 @@ void benchmarkInsertedBCHT(HashMapWorkload workload, int load_factor_in_percent)
   double throughput = total_op * 1.0 / (total_time);
 
   if (rank == 0) {
-    TestResult test_result("BCHT", load_factor_in_percent, size, total_op, workload.total_operation, workload.insert_weight, workload.get_weight, workload.remove_weight, total_op_succeed, throughput * 1000);
+    TestResult test_result("BCHT", load_factor_in_percent, size, total_op, workload.total_operation,
+                           workload.insert_weight, workload.get_weight, workload.remove_weight,
+                           total_op_succeed, throughput * 1000);
 #ifdef MEM_CHECK
     test_result.setMem(total_mem_in_bytes);
 #endif  // MEM_CHECK
@@ -510,7 +516,9 @@ void benchmarkInsertedPHHT(HashMapWorkload workload, int load_factor_in_percent)
   double throughput = total_op * 1.0 / (total_time);
 
   if (rank == 0) {
-    TestResult test_result("PHHT", load_factor_in_percent, size, total_op, workload.total_operation, workload.insert_weight, workload.get_weight, workload.remove_weight, total_op_succeed, throughput * 1000);
+    TestResult test_result("PHHT", load_factor_in_percent, size, total_op, workload.total_operation,
+                           workload.insert_weight, workload.get_weight, workload.remove_weight,
+                           total_op_succeed, throughput * 1000);
 #ifdef MEM_CHECK
     test_result.setMem(total_mem_in_bytes);
 #endif  // MEM_CHECK
@@ -615,7 +623,9 @@ void benchmarkInsertedSOHT(HashMapWorkload workload, int load_factor_in_percent,
 
   if (rank == 0) {
     hash_map.getLoadFactorInPercent();
-    TestResult test_result("SOHT", hash_map.getLoadFactorInPercent(), size, total_op, workload.total_operation, workload.insert_weight, workload.get_weight, workload.remove_weight, total_op_succeed, throughput * 1000);
+    TestResult test_result("SOHT", hash_map.getLoadFactorInPercent(), size, total_op, workload.total_operation,
+                           workload.insert_weight, workload.get_weight, workload.remove_weight,
+                           total_op_succeed, throughput * 1000);
 #ifdef MEM_CHECK
     test_result.setMem(total_mem_in_bytes);
 #endif  // MEM_CHECK
