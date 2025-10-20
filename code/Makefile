@@ -13,7 +13,7 @@ CFLAG = -g -Wall -std=c++11 -lm
 
 NP = 8
 
-ARGS = 1000 10 80 10
+ARGS = 0 1 1024 10 80 10
 
 $(EXEF):
 	mkdir $(EXEF)
