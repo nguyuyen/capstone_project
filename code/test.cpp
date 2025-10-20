@@ -3,6 +3,7 @@
 #include <mpi.h>
 #include <unistd.h>
 
+#include <chrono>
 #include <fstream>
 #include <iostream>
 #include <random>
@@ -19,9 +20,18 @@ int main(int argc, char** argv) {
   int get_weight = atoi(argv[4]);
   int remove_weight = atoi(argv[5]);
 
+  std::chrono::time_point<std::chrono::high_resolution_clock> start, end;
+  double time_in_ms;
+
   MPI_Init(&argc, &argv);
+  int rank, size;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
 
   ngu::HashMapWorkload workloadA(total_op, insert_weight, get_weight, remove_weight);
+
+  MPI_Barrier(MPI_COMM_WORLD);
+  start = std::chrono::high_resolution_clock::now();
 
   switch (type) {
     case 1:
@@ -70,6 +80,19 @@ int main(int argc, char** argv) {
       ngu::benchmarkInsertedPHHT(workloadA, 70);
       break;
   }
+
+  end = std::chrono::high_resolution_clock::now();
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  time_in_ms = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
+  double total_time;
+  MPI_Reduce(&time_in_ms, &total_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+
+  if (rank == 0) {
+    std::cout << "Total time: " << total_time / 1000 << "s" << std::endl;
+  }
+
   MPI_Finalize();
   return 0;
 }
