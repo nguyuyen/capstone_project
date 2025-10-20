@@ -1,3 +1,5 @@
+#define MEM_CHECK
+
 #include <mpi.h>
 #include <unistd.h>
 
@@ -28,15 +30,26 @@ int main(int argc, char** argv) {
 
   ngu::HashMapWorkload workloadA(total_op, insert_weight, get_weight, remove_weight);
 
-  ngu::benchmarkInsertedWFHM(workloadA);
+  ngu::benchmarkInsertedLFDHM(workloadA);
 
   ngu::benchmarkInsertedMHT(workloadA, 200);
-  ngu::benchmarkInsertedMHT(workloadA, 500);
-  ngu::benchmarkInsertedMHT(workloadA, 1000);
+  ngu::benchmarkInsertedMHT(workloadA, 400);
+  ngu::benchmarkInsertedMHT(workloadA, 800);
+
+  ngu::benchmarkInsertedSOHT(workloadA, 200);
+  ngu::benchmarkInsertedSOHT(workloadA, 400);
+  ngu::benchmarkInsertedSOHT(workloadA, 800);
 
   ngu::benchmarkInsertedBCHT(workloadA, 50);
   ngu::benchmarkInsertedBCHT(workloadA, 70);
   ngu::benchmarkInsertedBCHT(workloadA, 90);
+
+  ngu::benchmarkInsertedBCHT(workloadA, 50);
+  ngu::benchmarkInsertedBCHT(workloadA, 70);
+  ngu::benchmarkInsertedBCHT(workloadA, 90);
+
+  ngu::benchmarkInsertedPHHT(workloadA, 50);
+  ngu::benchmarkInsertedPHHT(workloadA, 70);
   MPI_Finalize();
   return 0;
 }

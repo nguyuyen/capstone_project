@@ -1,5 +1,5 @@
-#ifndef DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_MICHEAL_HASHTABLE_H
-#define DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_MICHEAL_HASHTABLE_H
+#ifndef DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_MICHEAL_HASH_MAP_H
+#define DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_MICHEAL_HASH_MAP_H
 
 // #define COMM_CHECK
 
@@ -43,7 +43,7 @@ class Hash2 {
 };
 
 template <typename Key, typename Value, typename HashFunctor = Hash2<Key>, typename KeyCompare = Compare<Key>>
-class MichealHashTable {
+class MichealHashMap {
   /// @brief rank(15 bit) - disp(48 bit) - tag(1 bit)
   using GPtr = uint64_t;
   class DataNode;
@@ -52,10 +52,10 @@ class MichealHashTable {
   static const GPtr null_gptr = 0;
 
  public:
-  MichealHashTable(MPI_Comm comm = MPI_COMM_WORLD, int table_length_each = 1000);
-  MichealHashTable(const MichealHashTable&) = delete;
-  MichealHashTable& operator=(const MichealHashTable&) = delete;
-  ~MichealHashTable();
+  MichealHashMap(MPI_Comm comm = MPI_COMM_WORLD, int table_length_each = 1000);
+  MichealHashMap(const MichealHashMap&) = delete;
+  MichealHashMap& operator=(const MichealHashMap&) = delete;
+  ~MichealHashMap();
   /// @brief Insert a key-value pair into hash map.
   /// @param key An input key.
   /// @param value An input value.
@@ -193,11 +193,11 @@ class MichealHashTable {
   GPtr* head_ptr;
 
   class DataNode {
-    using GPtr = MichealHashTable::GPtr;
+    using GPtr = MichealHashMap::GPtr;
 
    public:
     DataNode() : next(), key(), value() {};
-    DataNode(Key key, Value value, GPtr next = MichealHashTable::null_gptr) : next(next), key(key), value(value) {};
+    DataNode(Key key, Value value, GPtr next = MichealHashMap::null_gptr) : next(next), key(key), value(value) {};
 
    public:
     GPtr next;
@@ -207,7 +207,7 @@ class MichealHashTable {
 };
 
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline MichealHashTable<Key, Value, HashFunctor, KeyCompare>::MichealHashTable(MPI_Comm comm, int table_length_each)
+inline MichealHashMap<Key, Value, HashFunctor, KeyCompare>::MichealHashMap(MPI_Comm comm, int table_length_each)
     : table_length_each(table_length_each), comm(comm), data_mem(), plist(), rlist(), dlist() {
 #ifdef DEBUG
   std::cout << "[[" << this->myrank << "]]" << ": constructing..." << std::endl;
@@ -284,7 +284,7 @@ inline MichealHashTable<Key, Value, HashFunctor, KeyCompare>::MichealHashTable(M
 #endif  // DEBUG
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline MichealHashTable<Key, Value, HashFunctor, KeyCompare>::~MichealHashTable() {
+inline MichealHashMap<Key, Value, HashFunctor, KeyCompare>::~MichealHashMap() {
   int flag;
   delete[] this->head_ptr;
   delete[] this->array_mem;
@@ -303,7 +303,7 @@ inline MichealHashTable<Key, Value, HashFunctor, KeyCompare>::~MichealHashTable(
   }
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline bool MichealHashTable<Key, Value, HashFunctor, KeyCompare>::insert(Key key, Value value) {
+inline bool MichealHashMap<Key, Value, HashFunctor, KeyCompare>::insert(Key key, Value value) {
   int position = hash_functor(key) % (this->table_length_each * this->nprocs);
 #ifdef DEBUG
   std::cout << "[[Rank = " << this->myrank << "]]: " << "insert <" << key << "," << value << ">. at: " << position << std::endl;
@@ -320,19 +320,19 @@ inline bool MichealHashTable<Key, Value, HashFunctor, KeyCompare>::insert(Key ke
   return this->insertToList(head_node, key, value);
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline bool MichealHashTable<Key, Value, HashFunctor, KeyCompare>::get(Key key, Value& value) {
+inline bool MichealHashMap<Key, Value, HashFunctor, KeyCompare>::get(Key key, Value& value) {
   int position = hash_functor(key) % (this->table_length_each * this->nprocs);
   GPtr head_node = this->getHeadNode(position);
   return this->getFromList(head_node, key, value);
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline bool MichealHashTable<Key, Value, HashFunctor, KeyCompare>::remove(Key key) {
+inline bool MichealHashMap<Key, Value, HashFunctor, KeyCompare>::remove(Key key) {
   int position = hash_functor(key) % (this->table_length_each * this->nprocs);
   GPtr head_node = this->getHeadNode(position);
   return this->removeFromList(head_node, key);
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline bool MichealHashTable<Key, Value, HashFunctor, KeyCompare>::insertToList(GPtr head, Key key, Value value) {
+inline bool MichealHashMap<Key, Value, HashFunctor, KeyCompare>::insertToList(GPtr head, Key key, Value value) {
 #ifdef DEBUG
   std::cout << "[Rank = " << this->myrank << "]: " << "insert node at head node: " << head << std::endl;
 #endif  // DEBUG
@@ -350,9 +350,7 @@ inline bool MichealHashTable<Key, Value, HashFunctor, KeyCompare>::insertToList(
       if (debug_count == debug_max_count) {
         std::cout << "[Rank = " << this->myrank << "]: " << "insert node to list fail loop 1: " << prev << " -> " << curr << std::endl;
       }
-      while (true) {
-        sleep(5);
-      }
+      MPI_Abort(this->comm, 1);
     }
 #endif  // DEBUG
     if (findInList(head, key, value_temp, prev, curr, next) == true) {
@@ -378,7 +376,7 @@ inline bool MichealHashTable<Key, Value, HashFunctor, KeyCompare>::insertToList(
   return result;
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline bool MichealHashTable<Key, Value, HashFunctor, KeyCompare>::getFromList(GPtr head, Key key, Value& value) {
+inline bool MichealHashMap<Key, Value, HashFunctor, KeyCompare>::getFromList(GPtr head, Key key, Value& value) {
   GPtr prev = null_gptr, curr = null_gptr, next = null_gptr;
   bool result = this->findInList(head, key, value, prev, curr, next);
   this->setHPtr(null_gptr, 0);
@@ -387,7 +385,7 @@ inline bool MichealHashTable<Key, Value, HashFunctor, KeyCompare>::getFromList(G
   return result;
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline bool MichealHashTable<Key, Value, HashFunctor, KeyCompare>::removeFromList(GPtr head, Key key) {
+inline bool MichealHashMap<Key, Value, HashFunctor, KeyCompare>::removeFromList(GPtr head, Key key) {
   bool result = false;
   Value value_temp;
   GPtr prev = null_gptr, curr = null_gptr, next = null_gptr;
@@ -402,9 +400,7 @@ inline bool MichealHashTable<Key, Value, HashFunctor, KeyCompare>::removeFromLis
       if (debug_count == debug_max_count) {
         std::cout << "[Rank = " << this->myrank << "]: " << "remove node from list fail loop 1: " << prev << " -> " << curr << std::endl;
       }
-      while (true) {
-        sleep(5);
-      }
+      MPI_Abort(this->comm, 1);
     }
 #endif  // DEBUG
     if (this->findInList(head, key, value_temp, prev, curr, next) == false) {
@@ -426,7 +422,7 @@ inline bool MichealHashTable<Key, Value, HashFunctor, KeyCompare>::removeFromLis
   return result;
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline bool MichealHashTable<Key, Value, HashFunctor, KeyCompare>::findInList(GPtr head, Key key, Value& value, GPtr& prev, GPtr& curr, GPtr& next) {
+inline bool MichealHashMap<Key, Value, HashFunctor, KeyCompare>::findInList(GPtr head, Key key, Value& value, GPtr& prev, GPtr& curr, GPtr& next) {
   // TODO
 #ifdef DEBUG
   std::cout << "[Rank = " << this->myrank << "]: " << "get node from list node... " << std::endl;
@@ -445,9 +441,7 @@ inline bool MichealHashTable<Key, Value, HashFunctor, KeyCompare>::findInList(GP
       if (debug_count == debug_max_count) {
         std::cout << "[Rank = " << this->myrank << "]: " << "get node from list node fail loop 1: " << prev << " -> " << curr << std::endl;
       }
-      while (true) {
-        sleep(5);
-      }
+      MPI_Abort(this->comm, 1);
     }
 #endif  // DEBUG
     flag = false;
@@ -467,9 +461,7 @@ inline bool MichealHashTable<Key, Value, HashFunctor, KeyCompare>::findInList(GP
         if (debug_count2 == debug_max_count) {
           std::cout << "[Rank = " << this->myrank << "]: " << "get node from list node fail loop 2: " << prev << " -> " << curr << std::endl;
         }
-        while (true) {
-          sleep(5);
-        }
+        MPI_Abort(this->comm, 1);
       }
 #endif  // DEBUG
       if (unmark(curr) == null_gptr) {
@@ -492,7 +484,7 @@ inline bool MichealHashTable<Key, Value, HashFunctor, KeyCompare>::findInList(GP
         break;
       }
       if (isMarked(next) == false) {
-        if (this->key_order(curr_key, key) == false) {
+        if (this->key_order(curr_key, key) == false) {  // curr_key >= key
 #ifdef DEBUG
           std::cout << "[Rank = " << this->myrank << "]: " << "get node from list node return: " << (curr_key == key) << "||" << prev << " -> " << curr << std::endl;
 #endif  // DEBUG
@@ -519,8 +511,8 @@ inline bool MichealHashTable<Key, Value, HashFunctor, KeyCompare>::findInList(GP
   }
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline typename MichealHashTable<Key, Value, HashFunctor, KeyCompare>::DataNode
-MichealHashTable<Key, Value, HashFunctor, KeyCompare>::getData(GPtr node) {
+inline typename MichealHashMap<Key, Value, HashFunctor, KeyCompare>::DataNode
+MichealHashMap<Key, Value, HashFunctor, KeyCompare>::getData(GPtr node) {
   DataNode result;
   int rank = this->getRank(node);
 #ifdef COMM_CHECK
@@ -535,7 +527,7 @@ MichealHashTable<Key, Value, HashFunctor, KeyCompare>::getData(GPtr node) {
   return result;
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline void MichealHashTable<Key, Value, HashFunctor, KeyCompare>::setData(GPtr node, GPtr next, Key key, Value value) {
+inline void MichealHashMap<Key, Value, HashFunctor, KeyCompare>::setData(GPtr node, GPtr next, Key key, Value value) {
   DataNode data_node(key, value, next);
   int rank = this->getRank(node);
 #ifdef COMM_CHECK
@@ -549,18 +541,18 @@ inline void MichealHashTable<Key, Value, HashFunctor, KeyCompare>::setData(GPtr 
   MPI_Win_flush(rank, this->data);
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline void MichealHashTable<Key, Value, HashFunctor, KeyCompare>::safeFreeNode(GPtr node_to_free) {
+inline void MichealHashMap<Key, Value, HashFunctor, KeyCompare>::safeFreeNode(GPtr node_to_free) {
   this->dlist.push_back(node_to_free);
   if (this->dlist.size() >= this->max_dlist_size)
     this->scan();
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline void MichealHashTable<Key, Value, HashFunctor, KeyCompare>::freeNode(GPtr node_to_free) {
+inline void MichealHashMap<Key, Value, HashFunctor, KeyCompare>::freeNode(GPtr node_to_free) {
   this->plist.push_back(node_to_free);
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline typename MichealHashTable<Key, Value, HashFunctor, KeyCompare>::GPtr
-MichealHashTable<Key, Value, HashFunctor, KeyCompare>::allocateNode(Key key, Value value, GPtr next) {
+inline typename MichealHashMap<Key, Value, HashFunctor, KeyCompare>::GPtr
+MichealHashMap<Key, Value, HashFunctor, KeyCompare>::allocateNode(Key key, Value value, GPtr next) {
 #ifdef DEBUG
   std::cout << "[Rank = " << this->myrank << "]: " << "alloc... " << std::endl;
 #endif  // DEBUG
@@ -593,7 +585,7 @@ MichealHashTable<Key, Value, HashFunctor, KeyCompare>::allocateNode(Key key, Val
   return result;
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline void MichealHashTable<Key, Value, HashFunctor, KeyCompare>::scan() {
+inline void MichealHashMap<Key, Value, HashFunctor, KeyCompare>::scan() {
   std::list<GPtr> list_temp;
   std::list<GPtr> dlist_temp;
   GPtr hp;
@@ -621,8 +613,8 @@ inline void MichealHashTable<Key, Value, HashFunctor, KeyCompare>::scan() {
   this->dlist.splice(this->dlist.begin(), dlist_temp);
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline typename MichealHashTable<Key, Value, HashFunctor, KeyCompare>::GPtr
-MichealHashTable<Key, Value, HashFunctor, KeyCompare>::getHPtr(int rank, int number) {
+inline typename MichealHashMap<Key, Value, HashFunctor, KeyCompare>::GPtr
+MichealHashMap<Key, Value, HashFunctor, KeyCompare>::getHPtr(int rank, int number) {
 #ifdef COMM_CHECK
   if (isIntra(this->myrank, rank) == true)
     ++(this->intra_comm_count);
@@ -635,7 +627,7 @@ MichealHashTable<Key, Value, HashFunctor, KeyCompare>::getHPtr(int rank, int num
   return result;
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline void MichealHashTable<Key, Value, HashFunctor, KeyCompare>::setHPtr(GPtr node, int number) {
+inline void MichealHashMap<Key, Value, HashFunctor, KeyCompare>::setHPtr(GPtr node, int number) {
 #ifdef COMM_CHECK
   if (isIntra(this->myrank, this->myrank) == true)
     ++(this->intra_comm_count);
@@ -646,13 +638,13 @@ inline void MichealHashTable<Key, Value, HashFunctor, KeyCompare>::setHPtr(GPtr 
   MPI_Win_flush(this->myrank, this->hp_win);
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline typename MichealHashTable<Key, Value, HashFunctor, KeyCompare>::GPtr
-MichealHashTable<Key, Value, HashFunctor, KeyCompare>::makeGPtr(int rank, MPI_Aint disp, int tag) {
+inline typename MichealHashMap<Key, Value, HashFunctor, KeyCompare>::GPtr
+MichealHashMap<Key, Value, HashFunctor, KeyCompare>::makeGPtr(int rank, MPI_Aint disp, int tag) {
   return ((uint64_t)rank << 49) | (disp << 1) | tag;
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline typename MichealHashTable<Key, Value, HashFunctor, KeyCompare>::GPtr
-MichealHashTable<Key, Value, HashFunctor, KeyCompare>::getHeadNode(int position) {
+inline typename MichealHashMap<Key, Value, HashFunctor, KeyCompare>::GPtr
+MichealHashMap<Key, Value, HashFunctor, KeyCompare>::getHeadNode(int position) {
   int rank = position / this->table_length_each;
   int disp = position % this->table_length_each;
 #ifdef COMM_CHECK
@@ -676,16 +668,16 @@ MichealHashTable<Key, Value, HashFunctor, KeyCompare>::getHeadNode(int position)
   return this->makeGPtr(rank, real_disp, 0);
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline int MichealHashTable<Key, Value, HashFunctor, KeyCompare>::getRank(GPtr node) {
+inline int MichealHashMap<Key, Value, HashFunctor, KeyCompare>::getRank(GPtr node) {
   return (node >> 49);
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline MPI_Aint MichealHashTable<Key, Value, HashFunctor, KeyCompare>::getDisp(GPtr node) {
+inline MPI_Aint MichealHashMap<Key, Value, HashFunctor, KeyCompare>::getDisp(GPtr node) {
   // return ((node << 15) >> 16);
   return (node >> 1) & ((1ULL << 48) - 1);
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline bool MichealHashTable<Key, Value, HashFunctor, KeyCompare>::CASNext(GPtr curr, GPtr old_next, GPtr new_next) {
+inline bool MichealHashMap<Key, Value, HashFunctor, KeyCompare>::CASNext(GPtr curr, GPtr old_next, GPtr new_next) {
 #ifdef DEBUG
   std::cout << "[" << this->myrank << "]: " << ": CAS at: " << curr << ", " << old_next << "->" << new_next << std::endl;
 #endif  // DEBUG
@@ -710,18 +702,18 @@ inline bool MichealHashTable<Key, Value, HashFunctor, KeyCompare>::CASNext(GPtr 
   return (result == old_next);
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline typename MichealHashTable<Key, Value, HashFunctor, KeyCompare>::GPtr
-MichealHashTable<Key, Value, HashFunctor, KeyCompare>::mark(GPtr node) {
+inline typename MichealHashMap<Key, Value, HashFunctor, KeyCompare>::GPtr
+MichealHashMap<Key, Value, HashFunctor, KeyCompare>::mark(GPtr node) {
   return (node | 1);
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline typename MichealHashTable<Key, Value, HashFunctor, KeyCompare>::GPtr
-MichealHashTable<Key, Value, HashFunctor, KeyCompare>::unmark(GPtr node) {
+inline typename MichealHashMap<Key, Value, HashFunctor, KeyCompare>::GPtr
+MichealHashMap<Key, Value, HashFunctor, KeyCompare>::unmark(GPtr node) {
   return (node & (~1));
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline typename MichealHashTable<Key, Value, HashFunctor, KeyCompare>::GPtr
-MichealHashTable<Key, Value, HashFunctor, KeyCompare>::getNextNode(GPtr node) {
+inline typename MichealHashMap<Key, Value, HashFunctor, KeyCompare>::GPtr
+MichealHashMap<Key, Value, HashFunctor, KeyCompare>::getNextNode(GPtr node) {
   GPtr result;
   int rank = this->getRank(node);
 #ifdef COMM_CHECK
@@ -739,9 +731,9 @@ MichealHashTable<Key, Value, HashFunctor, KeyCompare>::getNextNode(GPtr node) {
   return result;
 }
 template <typename Key, typename Value, typename HashFunctor, typename KeyCompare>
-inline bool MichealHashTable<Key, Value, HashFunctor, KeyCompare>::isMarked(GPtr node) {
+inline bool MichealHashMap<Key, Value, HashFunctor, KeyCompare>::isMarked(GPtr node) {
   return (node & 1);
 }
 }  // namespace ngu
 
-#endif  // DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_MICHEAL_HASHTABLE_H
+#endif  // DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_MICHEAL_HASH_MAP_H

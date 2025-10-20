@@ -1,5 +1,5 @@
-#ifndef DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_WAIT_FREE_HASH_MAP_H
-#define DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_WAIT_FREE_HASH_MAP_H
+#ifndef DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_LABORDE_FELDMAN_DECHEV_HASH_MAP_H
+#define DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_LABORDE_FELDMAN_DECHEV_HASH_MAP_H
 
 #define BASIC_HASH_MAP
 
@@ -62,7 +62,7 @@ class Hash {
  public:
   Bitset<Key> operator()(Key key) const {
     Bitset<Key> bits = toBitset(key);
-#ifndef DEBUG
+#ifdef SHUFFLE_BITSET
     shuffle_bitset(bits);
 #endif  // DEBUG
     return bits;
@@ -74,7 +74,7 @@ class Hash {
 /// @tparam Value Value Type
 /// @tparam HashFunctor Hash Functor Type
 template <typename Key, typename Value, typename HashFunctor = Hash<Key>>
-class WaitFreeHashMap {
+class LabordeFeldmanDechevHashMap {
   using HashValue = Bitset<Key>;
 
   /// @brief rank(14 bit) - disp(48 bit) - tag(2 bit)
@@ -85,10 +85,10 @@ class WaitFreeHashMap {
   static const GPtr null_gptr = 0;
 
  public:
-  WaitFreeHashMap(MPI_Comm comm = MPI_COMM_WORLD);
-  WaitFreeHashMap(const WaitFreeHashMap&) = delete;
-  WaitFreeHashMap& operator=(const WaitFreeHashMap&) = delete;
-  ~WaitFreeHashMap();
+  LabordeFeldmanDechevHashMap(MPI_Comm comm = MPI_COMM_WORLD);
+  LabordeFeldmanDechevHashMap(const LabordeFeldmanDechevHashMap&) = delete;
+  LabordeFeldmanDechevHashMap& operator=(const LabordeFeldmanDechevHashMap&) = delete;
+  ~LabordeFeldmanDechevHashMap();
   /// @brief Insert a key-value pair into hash map.
   /// @param key An input key.
   /// @param value An input value.
@@ -283,7 +283,7 @@ class WaitFreeHashMap {
   GPtr* head_arr;
 
   class DataNode {
-    using HashValue = WaitFreeHashMap::HashValue;
+    using HashValue = LabordeFeldmanDechevHashMap::HashValue;
 
    public:
     DataNode() : hash_value(), value() {};
@@ -296,7 +296,7 @@ class WaitFreeHashMap {
 };
 
 template <typename Key, typename Value, typename HashFunctor>
-inline WaitFreeHashMap<Key, Value, HashFunctor>::WaitFreeHashMap(MPI_Comm comm) : comm(comm), array_mem(), data_mem(), plist(), rlist(), dlist() {
+inline LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::LabordeFeldmanDechevHashMap(MPI_Comm comm) : comm(comm), array_mem(), data_mem(), plist(), rlist(), dlist() {
   // Get number of processes and rank
   MPI_Comm_size(comm, &this->nprocs);
   MPI_Comm_rank(comm, &this->myrank);
@@ -342,7 +342,7 @@ inline WaitFreeHashMap<Key, Value, HashFunctor>::WaitFreeHashMap(MPI_Comm comm) 
 #endif  // DEBUG
 }
 template <typename Key, typename Value, typename HashFunctor>
-inline WaitFreeHashMap<Key, Value, HashFunctor>::~WaitFreeHashMap() {
+inline LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::~LabordeFeldmanDechevHashMap() {
 #ifdef DEBUG
   std::cout << "[" << this->myrank << "]" << ": destruct" << std::endl;
 #endif  // DEBUG
@@ -368,7 +368,7 @@ inline WaitFreeHashMap<Key, Value, HashFunctor>::~WaitFreeHashMap() {
   }
 }
 template <typename Key, typename Value, typename HashFunctor>
-bool WaitFreeHashMap<Key, Value, HashFunctor>::insert(Key key, Value value) {
+bool LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::insert(Key key, Value value) {
 #ifdef DEBUG
   std::cout << "[" << this->myrank << "]" << ": inserting<" << key << "," << value << ">..." << std::endl;
 #endif  // DEBUG
@@ -452,7 +452,7 @@ bool WaitFreeHashMap<Key, Value, HashFunctor>::insert(Key key, Value value) {
 #else
 
 template <typename Key, typename Value, typename HashFunctor>
-inline bool WaitFreeHashMap<Key, Value, HashFunctor>::update(Key key, Value expected_value, Value new_value) {
+inline bool LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::update(Key key, Value expected_value, Value new_value) {
   HashValue hash_value = hash_functor(key);
   HashValue hash_value_temp = hash_value;
 
@@ -555,11 +555,10 @@ inline bool WaitFreeHashMap<Key, Value, HashFunctor>::update(Key key, Value expe
 #endif  // BASIC_HASH_MAP
 #ifdef BASIC_HASH_MAP
 template <typename Key, typename Value, typename HashFunctor>
-bool WaitFreeHashMap<Key, Value, HashFunctor>::get(Key key, Value& value) {
+bool LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::get(Key key, Value& value) {
 #ifdef DEBUG
   std::cout << "[" << this->myrank << "]" << ": getting<" << key << ">..." << std::endl;
 #endif  // DEBUG
-  /*TODO: return null_gptr if no key match*/
   HashValue hash_value = hash_functor(key);
   HashValue hash_value_temp = hash_value;
 
@@ -635,7 +634,7 @@ bool WaitFreeHashMap<Key, Value, HashFunctor>::get(Key key, Value& value) {
 }
 #else
 template <typename Key, typename Value, typename HashFunctor>
-Value WaitFreeHashMap<Key, Value, HashFunctor>::get(Key key) {
+Value LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::get(Key key) {
 #ifdef DEBUG
   std::cout << "[" << this->myrank << "]" << ": getting<" << key << ">..." << std::endl;
 #endif  // DEBUG
@@ -713,7 +712,7 @@ Value WaitFreeHashMap<Key, Value, HashFunctor>::get(Key key) {
 #endif  // BASIC_HASH_MAP
 #ifdef BASIC_HASH_MAP
 template <typename Key, typename Value, typename HashFunctor>
-bool WaitFreeHashMap<Key, Value, HashFunctor>::remove(Key key) {
+bool LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::remove(Key key) {
   HashValue hash_value = hash_functor(key);
   HashValue hash_value_temp = hash_value;
 
@@ -804,7 +803,7 @@ bool WaitFreeHashMap<Key, Value, HashFunctor>::remove(Key key) {
 }
 #else
 template <typename Key, typename Value, typename HashFunctor>
-bool WaitFreeHashMap<Key, Value, HashFunctor>::remove(Key key, Value expected_value) {
+bool LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::remove(Key key, Value expected_value) {
   HashValue hash_value = hash_functor(key);
   HashValue hash_value_temp = hash_value;
 
@@ -901,7 +900,7 @@ bool WaitFreeHashMap<Key, Value, HashFunctor>::remove(Key key, Value expected_va
 }
 #endif  // BASIC_HASH_MAP
 template <typename Key, typename Value, typename HashFunctor>
-inline typename WaitFreeHashMap<Key, Value, HashFunctor>::GPtr WaitFreeHashMap<Key, Value, HashFunctor>::expandMap(GPtr local, int position, int right) {
+inline typename LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::GPtr LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::expandMap(GPtr local, int position, int right) {
 #ifdef DEBUG
   std::cout << this->myrank << ": expanding..." << std::endl;
 #endif  // DEBUG
@@ -940,7 +939,7 @@ inline typename WaitFreeHashMap<Key, Value, HashFunctor>::GPtr WaitFreeHashMap<K
   }
 }
 template <typename Key, typename Value, typename HashFunctor>
-inline void WaitFreeHashMap<Key, Value, HashFunctor>::watch(GPtr node) {
+inline void LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::watch(GPtr node) {
 #ifdef COMM_CHECK
   if (isIntra(this->myrank, this->myrank) == true)
     ++(this->intra_comm_count);
@@ -951,17 +950,17 @@ inline void WaitFreeHashMap<Key, Value, HashFunctor>::watch(GPtr node) {
   MPI_Win_flush(this->myrank, this->hp_win);
 }
 template <typename Key, typename Value, typename HashFunctor>
-inline void WaitFreeHashMap<Key, Value, HashFunctor>::free(GPtr node_to_free) {
+inline void LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::free(GPtr node_to_free) {
   this->plist.push_back(node_to_free);
 }
 template <typename Key, typename Value, typename HashFunctor>
-inline void WaitFreeHashMap<Key, Value, HashFunctor>::safeFreeNode(GPtr node_to_free) {
+inline void LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::safeFreeNode(GPtr node_to_free) {
   this->dlist.push_back(node_to_free);
   if (this->dlist.size() >= this->max_dlist_size)
     this->scan();
 }
 template <typename Key, typename Value, typename HashFunctor>
-inline typename WaitFreeHashMap<Key, Value, HashFunctor>::GPtr WaitFreeHashMap<Key, Value, HashFunctor>::allocateNode(Value value, HashValue hash_value) {
+inline typename LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::GPtr LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::allocateNode(Value value, HashValue hash_value) {
   GPtr result = null_gptr;
   if (this->rlist.empty() == false) {
     result = this->rlist.back();
@@ -999,7 +998,7 @@ inline typename WaitFreeHashMap<Key, Value, HashFunctor>::GPtr WaitFreeHashMap<K
   return result;
 }
 template <typename Key, typename Value, typename HashFunctor>
-inline void WaitFreeHashMap<Key, Value, HashFunctor>::scan() {
+inline void LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::scan() {
   std::list<GPtr> list_temp;
   std::list<GPtr> dlist_temp;
   GPtr hp;
@@ -1021,7 +1020,7 @@ inline void WaitFreeHashMap<Key, Value, HashFunctor>::scan() {
   this->dlist.splice(this->dlist.begin(), dlist_temp);
 }
 template <typename Key, typename Value, typename HashFunctor>
-inline typename WaitFreeHashMap<Key, Value, HashFunctor>::GPtr WaitFreeHashMap<Key, Value, HashFunctor>::getNode(GPtr local, int pos) {
+inline typename LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::GPtr LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::getNode(GPtr local, int pos) {
   GPtr result = 2;
   if (local == null_gptr) {
     int rank = this->getHeadRank(pos);
@@ -1052,7 +1051,7 @@ inline typename WaitFreeHashMap<Key, Value, HashFunctor>::GPtr WaitFreeHashMap<K
   return result;
 }
 template <typename Key, typename Value, typename HashFunctor>
-inline void WaitFreeHashMap<Key, Value, HashFunctor>::setNode(GPtr local, int position, GPtr node) {
+inline void LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::setNode(GPtr local, int position, GPtr node) {
 #ifdef DEBUG
   std::cout << "///" << this->myrank << ": setnode: " << local << "-" << position << ":" << node << std::endl;
 #endif  // DEBUG
@@ -1084,7 +1083,7 @@ inline void WaitFreeHashMap<Key, Value, HashFunctor>::setNode(GPtr local, int po
 #endif  // DEBUG
 }
 template <typename Key, typename Value, typename HashFunctor>
-inline typename WaitFreeHashMap<Key, Value, HashFunctor>::DataNode WaitFreeHashMap<Key, Value, HashFunctor>::getData(GPtr node) {
+inline typename LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::DataNode LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::getData(GPtr node) {
   DataNode result;
   int rank = this->getRank(node);
 #ifdef COMM_CHECK
@@ -1102,7 +1101,7 @@ inline typename WaitFreeHashMap<Key, Value, HashFunctor>::DataNode WaitFreeHashM
   return result;
 }
 template <typename Key, typename Value, typename HashFunctor>
-inline void WaitFreeHashMap<Key, Value, HashFunctor>::setData(GPtr node, Value value, HashValue hash_value) {
+inline void LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::setData(GPtr node, Value value, HashValue hash_value) {
   DataNode data_node(hash_value, value);
   int rank = this->getRank(node);
 #ifdef COMM_CHECK
@@ -1119,21 +1118,21 @@ inline void WaitFreeHashMap<Key, Value, HashFunctor>::setData(GPtr node, Value v
 #endif  // DEBUG
 }
 template <typename Key, typename Value, typename HashFunctor>
-inline bool WaitFreeHashMap<Key, Value, HashFunctor>::isMarked(GPtr node) {
+inline bool LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::isMarked(GPtr node) {
 #ifdef DEBUG
   std::cout << this->myrank << ":check mark:" << node << ":" << ((node & 1)) << std::endl;
 #endif  // DEBUG
   return (node & 1);
 }
 template <typename Key, typename Value, typename HashFunctor>
-inline bool WaitFreeHashMap<Key, Value, HashFunctor>::isArrayNode(GPtr node) {
+inline bool LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::isArrayNode(GPtr node) {
 #ifdef DEBUG
   std::cout << this->myrank << ":check array:" << node << ":" << ((node & 2)) << std::endl;
 #endif  // DEBUG
   return (node & 2);
 }
 template <typename Key, typename Value, typename HashFunctor>
-inline typename WaitFreeHashMap<Key, Value, HashFunctor>::GPtr WaitFreeHashMap<Key, Value, HashFunctor>::markDataNode(GPtr local, int pos) {
+inline typename LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::GPtr LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::markDataNode(GPtr local, int pos) {
 #ifdef DEBUG
   std::cout << this->myrank << "mark data: <" << local << "," << pos << ">" << std::endl;
 #endif  // DEBUG
@@ -1164,11 +1163,11 @@ inline typename WaitFreeHashMap<Key, Value, HashFunctor>::GPtr WaitFreeHashMap<K
   return this->getNode(local, pos);
 }
 template <typename Key, typename Value, typename HashFunctor>
-inline typename WaitFreeHashMap<Key, Value, HashFunctor>::GPtr WaitFreeHashMap<Key, Value, HashFunctor>::unmark(GPtr node) {
+inline typename LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::GPtr LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::unmark(GPtr node) {
   return (node | 1);
 }
 template <typename Key, typename Value, typename HashFunctor>
-inline typename WaitFreeHashMap<Key, Value, HashFunctor>::GPtr WaitFreeHashMap<Key, Value, HashFunctor>::getHPtr(int rank) {
+inline typename LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::GPtr LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::getHPtr(int rank) {
 #ifdef COMM_CHECK
   if (isIntra(this->myrank, rank) == true)
     ++(this->intra_comm_count);
@@ -1181,28 +1180,28 @@ inline typename WaitFreeHashMap<Key, Value, HashFunctor>::GPtr WaitFreeHashMap<K
   return result;
 }
 template <typename Key, typename Value, typename HashFunctor>
-inline typename WaitFreeHashMap<Key, Value, HashFunctor>::GPtr WaitFreeHashMap<Key, Value, HashFunctor>::makeGPtr(int rank, MPI_Aint disp, int tag) {
+inline typename LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::GPtr LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::makeGPtr(int rank, MPI_Aint disp, int tag) {
   return ((uint64_t)rank << 50) | (disp << 2) | tag;
 }
 template <typename Key, typename Value, typename HashFunctor>
-inline int WaitFreeHashMap<Key, Value, HashFunctor>::getHeadRank(int position) {
+inline int LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::getHeadRank(int position) {
   return std::min(position / (this->head_length / this->nprocs), this->nprocs - 1);
 }
 template <typename Key, typename Value, typename HashFunctor>
-inline MPI_Aint WaitFreeHashMap<Key, Value, HashFunctor>::getHeadDisp(int position) {
+inline MPI_Aint LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::getHeadDisp(int position) {
   return position - this->getHeadRank(position) * (this->head_length / this->nprocs);
 }
 template <typename Key, typename Value, typename HashFunctor>
-inline int WaitFreeHashMap<Key, Value, HashFunctor>::getRank(GPtr node) {
+inline int LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::getRank(GPtr node) {
   return (node >> 50);
 }
 template <typename Key, typename Value, typename HashFunctor>
-inline MPI_Aint WaitFreeHashMap<Key, Value, HashFunctor>::getDisp(GPtr node) {
+inline MPI_Aint LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::getDisp(GPtr node) {
   return ((node << 14) >> 16);
 }
 template <typename Key, typename Value, typename HashFunctor>
-inline typename WaitFreeHashMap<Key, Value, HashFunctor>::GPtr
-WaitFreeHashMap<Key, Value, HashFunctor>::CAS(GPtr local, int position, GPtr old_value, GPtr new_value) {
+inline typename LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::GPtr
+LabordeFeldmanDechevHashMap<Key, Value, HashFunctor>::CAS(GPtr local, int position, GPtr old_value, GPtr new_value) {
 #ifdef DEBUG
   std::cout << this->myrank << ": cas<" << local << "," << position << ">/new value: " << new_value << std::endl;
 #endif  // DEBUG
@@ -1235,4 +1234,4 @@ WaitFreeHashMap<Key, Value, HashFunctor>::CAS(GPtr local, int position, GPtr old
 
 }  // namespace ngu
 
-#endif  // DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_WAIT_FREE_HASH_MAP_H
+#endif  // DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_LABORDE_FELDMAN_DECHEV_HASH_MAP_H

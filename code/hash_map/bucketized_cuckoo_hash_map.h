@@ -1,5 +1,5 @@
-#ifndef DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_BUCKETIZED_CUCKOO_HASHTABLE_H
-#define DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_BUCKETIZED_CUCKOO_HASHTABLE_H
+#ifndef DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_BUCKETIZED_CUCKOO_HASH_MAP_H
+#define DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_BUCKETIZED_CUCKOO_HASH_MAP_H
 
 // #define COMM_CHECK
 
@@ -50,7 +50,7 @@ class Hash3 {
 };
 
 template <typename Key, typename Value, typename HashFunctor1 = Hash3<Key, 833123>, typename HashFunctor2 = Hash3<Key, 33491>, typename HashFunctor3 = Hash3<Key, 895>>
-class BucketizedCuckooHashTable {
+class BucketizedCuckooHashMap {
   /// @brief rank(11 bit) - disp(48 bit) - tag(5 bit) [unuse(2bit)-target(2bit)-kick(1bit)]
   using GPtr = uint64_t;
   class DataNode;
@@ -63,10 +63,10 @@ class BucketizedCuckooHashTable {
   static constexpr int max_depth_search = 5;
 
  public:
-  BucketizedCuckooHashTable(MPI_Comm comm = MPI_COMM_WORLD, int table_length_each = 1000);
-  BucketizedCuckooHashTable(const BucketizedCuckooHashTable&) = delete;
-  BucketizedCuckooHashTable& operator=(const BucketizedCuckooHashTable&) = delete;
-  ~BucketizedCuckooHashTable();
+  BucketizedCuckooHashMap(MPI_Comm comm = MPI_COMM_WORLD, int table_length_each = 1000);
+  BucketizedCuckooHashMap(const BucketizedCuckooHashMap&) = delete;
+  BucketizedCuckooHashMap& operator=(const BucketizedCuckooHashMap&) = delete;
+  ~BucketizedCuckooHashMap();
 
   bool insert(Key key, Value value);
   bool get(Key key, Value& value);
@@ -249,7 +249,7 @@ class BucketizedCuckooHashTable {
 };
 
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::BucketizedCuckooHashTable(MPI_Comm comm, int table_length_each)
+inline BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::BucketizedCuckooHashMap(MPI_Comm comm, int table_length_each)
     : table_length_each(table_length_each), comm(comm), data_mem(), plist(), rlist(), dlist() {
   MPI_Comm_size(comm, &this->nprocs);
   MPI_Comm_rank(comm, &this->myrank);
@@ -326,7 +326,7 @@ inline BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFun
   MPI_Win_lock_all(0, this->hp_win);
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::~BucketizedCuckooHashTable() {
+inline BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::~BucketizedCuckooHashMap() {
 #ifdef DEBUG_MOVE
   std::cout << "[[Rank = " << this->myrank << "]]: " << "move count = " << this->move_count << std::endl;
 #endif  // DEBUG_MOVE
@@ -356,7 +356,7 @@ inline BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFun
   }
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline bool BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::insert(Key key, Value value) {
+inline bool BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::insert(Key key, Value value) {
 #ifdef DEBUG
   std::cout << "[[Rank = " << this->myrank << "]]: " << "insert <" << key << "," << value << ">" << std::endl;
 #endif  // DEBUG
@@ -374,17 +374,17 @@ inline bool BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, Ha
 #endif  // DEBUG2
   while (true) {
     ++insert_try_count;
-    if (insert_try_count > this->max_insert_try)
-      break;
+    if (insert_try_count > this->max_insert_try) {
+      std::cout << "[[Rank = " << this->myrank << "]: try to much, cant insert" << std::endl;
+      MPI_Abort(this->comm, 1);
+    }
 #ifdef DEBUG2
     ++debug_count;
     if (debug_count >= debug_max_count) {
       if (debug_count == debug_max_count) {
         std::cout << "[Rank = " << this->myrank << "]: " << "insert fail loop 1." << std::endl;
       }
-      while (true) {
-        sleep(5);
-      }
+      MPI_Abort(this->comm, 1);
     }
 #endif  // DEBUG2
     search_result = this->search(key, bucket, slot, value_temp);
@@ -420,7 +420,7 @@ inline bool BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, Ha
   return result;
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline bool BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::get(Key key, Value& value) {
+inline bool BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::get(Key key, Value& value) {
 #ifdef DEBUG
   std::cout << "[[Rank = " << this->myrank << "]]: " << "get key: " << key << std::endl;
 #endif  // DEBUG
@@ -431,7 +431,7 @@ inline bool BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, Ha
     return false;
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline bool BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::remove(Key key) {
+inline bool BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::remove(Key key) {
 #ifdef DEBUG
   std::cout << "[[Rank = " << this->myrank << "]]: " << "remove key: " << key << std::endl;
 #endif  // DEBUG
@@ -459,7 +459,7 @@ inline bool BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, Ha
   return result;
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline int BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::search(Key key, int& bucket, int& slot, Value& value) {
+inline int BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::search(Key key, int& bucket, int& slot, Value& value) {
   bool reset;
   bool hit = false;
   bool miss = false;
@@ -487,9 +487,7 @@ inline int BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, Has
         }
         std::cout << std::endl;
       }
-      while (true) {
-        sleep(5);
-      }
+      MPI_Abort(this->comm, 1);
     }
 #endif  // DEBUG2
     reset = false;
@@ -560,7 +558,7 @@ inline int BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, Has
   }
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline bool BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::moveItem(int source_bucket, int source_slot, int target_bucket, int target_slot) {
+inline bool BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::moveItem(int source_bucket, int source_slot, int target_bucket, int target_slot) {
 #ifdef DEBUG2
   std::cout << "[[Rank = " << this->myrank << "]]: " << " move: <" << source_bucket << "," << source_slot << ">-><" << target_bucket << "," << target_slot << ">" << std::endl;
 #endif  // DEBUG2
@@ -585,7 +583,7 @@ inline bool BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, Ha
   }
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::helper(int source_bucket, int source_slot, GPtr source_node) {
+inline void BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::helper(int source_bucket, int source_slot, GPtr source_node) {
   Key key = this->getData(source_node).key;
   int target_bucket1, target_bucket2;
   this->calBucket(key, target_bucket1, target_bucket2);
@@ -594,7 +592,7 @@ inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, Ha
   this->copy(source_bucket, source_slot, target_bucket, target_slot, source_node);
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline bool BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::copy(int source_bucket, int source_slot, int target_bucket, int target_slot, GPtr kick_marked_node) {
+inline bool BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::copy(int source_bucket, int source_slot, int target_bucket, int target_slot, GPtr kick_marked_node) {
   GPtr source_node = this->unkickMarked(kick_marked_node);
   Key key;
   uint64_t hash_value1, hash_value2;
@@ -629,15 +627,15 @@ inline bool BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, Ha
   return false;
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::setRetryIfHazard(uint64_t hash_value) {
+inline void BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::setRetryIfHazard(uint64_t hash_value) {
   for (int i = 0; i < this->nprocs; ++i) {
     if (hash_value == this->getHpRecord(i))
       this->setHpFlag(i, 1);
   }
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline typename BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::SlotInfo
-BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::slotSearch(int bucket1, int bucket2) {
+inline typename BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::SlotInfo
+BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::slotSearch(int bucket1, int bucket2) {
 #ifdef DEBUG2
   std::cout << "[[Rank = " << this->myrank << "]]: " << " slot search at bucket: " << bucket1 << "," << bucket2 << std::endl;
 #endif  // DEBUG2
@@ -703,7 +701,7 @@ BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>:
   return SlotInfo(0, 0, -1);
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline int BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::pathSearch(int bucket1, int bucket2, std::array<CuckooRecord, max_depth_search>& path) {
+inline int BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::pathSearch(int bucket1, int bucket2, std::array<CuckooRecord, max_depth_search>& path) {
 #ifdef DEBUG2
   std::cout << "[[Rank = " << this->myrank << "]]: " << " path search at bucket: " << bucket1 << "," << bucket2 << std::endl;
 #endif  // DEBUG2
@@ -762,7 +760,7 @@ inline int BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, Has
   }
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline bool BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::moveAlongPath(std::array<CuckooRecord, max_depth_search>& path, int depth) {
+inline bool BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::moveAlongPath(std::array<CuckooRecord, max_depth_search>& path, int depth) {
 #ifdef DEBUG_MOVE
 #ifdef DEBUG2
   std::cout << "[[Rank = " << this->myrank << "]]: " << " move along path, depth: " << depth << std::endl;
@@ -783,7 +781,7 @@ inline bool BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, Ha
   return true;
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::checkDuplicateKey(Key key) {
+inline void BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::checkDuplicateKey(Key key) {
   bool reset = false;
   int count = 0;
   Snapshot task;
@@ -853,8 +851,8 @@ inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, Ha
   }
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline typename BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::GPtr
-BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getNode(int bucket, int slot) {
+inline typename BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::GPtr
+BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getNode(int bucket, int slot) {
   GPtr result = 2;
   int rank = this->getRankByBucket(bucket);
 #ifdef COMM_CHECK
@@ -869,7 +867,7 @@ BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>:
   return result;
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getBucketData(int bucket, GPtr* arr) {
+inline void BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getBucketData(int bucket, GPtr* arr) {
   int rank = this->getRankByBucket(bucket);
 #ifdef COMM_CHECK
   if (isIntra(this->myrank, rank) == true)
@@ -882,8 +880,8 @@ inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, Ha
   MPI_Win_flush(rank, this->table);
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline typename BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::DataNode
-BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getData(GPtr node) {
+inline typename BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::DataNode
+BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getData(GPtr node) {
   DataNode result;
   int rank = this->getRankt(node);
 #ifdef COMM_CHECK
@@ -894,9 +892,7 @@ BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>:
 #endif  // COMM_CHECK
   if (rank >= this->nprocs) {
     std::cout << "[[Rank = " << this->myrank << "]: ??????: " << node << std::endl;
-    while (true) {
-      sleep(5);
-    }
+    MPI_Abort(this->comm, 1);
   }
   MPI_Aint disp = this->getDispt(node);
   MPI_Get_accumulate(NULL, 0, MPI_INT, &result, sizeof(DataNode), MPI_CHAR, rank, disp, sizeof(DataNode), MPI_CHAR, MPI_NO_OP, this->data);
@@ -904,7 +900,7 @@ BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>:
   return result;
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::setData(GPtr node, Key key, Value value) {
+inline void BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::setData(GPtr node, Key key, Value value) {
   DataNode data_node(key, value);
   int rank = this->getRankt(node);
 #ifdef COMM_CHECK
@@ -918,8 +914,8 @@ inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, Ha
   MPI_Win_flush(rank, this->data);
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline typename BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::GPtr
-BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::allocateNode(Key key, Value value) {
+inline typename BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::GPtr
+BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::allocateNode(Key key, Value value) {
   GPtr result = null_gptr;
   if (this->rlist.empty() == false) {
     result = this->rlist.back();
@@ -946,17 +942,17 @@ BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>:
   return result;
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::safeFreeNode(GPtr node) {
+inline void BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::safeFreeNode(GPtr node) {
   this->dlist.push_back(this->unkickMarked(node));
   if (this->dlist.size() >= this->max_dlist_size)
     this->scan();
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::freeNode(GPtr node) {
+inline void BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::freeNode(GPtr node) {
   this->plist.push_back(node);
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::scan() {
+inline void BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::scan() {
   std::list<GPtr> list_temp;
   std::list<GPtr> dlist_temp;
   GPtr hp;
@@ -981,34 +977,32 @@ inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, Ha
   this->dlist.splice(this->dlist.begin(), dlist_temp);
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline typename BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::GPtr
-BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::makeGPtr(int rank, MPI_Aint disp, int tag) {
+inline typename BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::GPtr
+BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::makeGPtr(int rank, MPI_Aint disp, int tag) {
   return ((uint64_t)rank << 53) | (disp << 5) | tag;
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline int BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getRankt(GPtr node) {
+inline int BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getRankt(GPtr node) {
   return (node >> 53);
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline MPI_Aint BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getDispt(GPtr node) {
+inline MPI_Aint BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getDispt(GPtr node) {
   return ((node << 11) >> 16);
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline int BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getRankByBucket(int bucket) {
+inline int BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getRankByBucket(int bucket) {
   if (bucket >= this->table_length_each * this->nprocs) {
     std::cout << "[[Rank = " << this->myrank << "]: ???: " << bucket << std::endl;
-    while (true) {
-      sleep(5);
-    }
+    MPI_Abort(this->comm, 1);
   }
-  return (bucket / this->table_length_each);
+  return (bucket % this->nprocs);
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline MPI_Aint BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getDispBySlot(int bucket, int slot) {
-  return (bucket % this->table_length_each) * 4 + slot;
+inline MPI_Aint BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getDispBySlot(int bucket, int slot) {
+  return (bucket / this->nprocs) * 4 + slot;
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline bool BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::CAS(int bucket, int slot, GPtr old_value, GPtr new_value) {
+inline bool BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::CAS(int bucket, int slot, GPtr old_value, GPtr new_value) {
 #ifdef DEBUG
   std::cout << "[" << this->myrank << "]: " << "CAS at <" << bucket << "," << slot << ">" << std::endl;
 #endif  // DEBUG
@@ -1034,31 +1028,31 @@ inline bool BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, Ha
   return (result == old_value);
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline typename BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::GPtr
-BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::kickMark(GPtr node, int target_slot) {
+inline typename BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::GPtr
+BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::kickMark(GPtr node, int target_slot) {
   return (node | (target_slot << 1) | 1);
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline bool BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::isKickMarked(GPtr node) {
+inline bool BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::isKickMarked(GPtr node) {
   return (node & 1);
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline typename BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::GPtr
-BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::unkickMarked(GPtr node) {
+inline typename BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::GPtr
+BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::unkickMarked(GPtr node) {
   return (node & (~7));
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline int BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getTargetSlot(GPtr node) {
+inline int BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getTargetSlot(GPtr node) {
   return ((node >> 1) & 3);
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::calBucket(Key key, int& bucket1, int& bucket2) {
+inline void BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::calBucket(Key key, int& bucket1, int& bucket2) {
   uint64_t hash_value1, hash_value2;
   this->calHash(key, hash_value1, hash_value2);
   this->calBucketFromHash(bucket1, bucket2, hash_value1, hash_value2);
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::calHash(Key key, uint64_t& hash_value1, uint64_t& hash_value2) {
+inline void BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::calHash(Key key, uint64_t& hash_value1, uint64_t& hash_value2) {
 #ifdef MURMUR128_SPLIT_C11_HPP
   std::pair<uint64_t, uint64_t> p = MurmurHash3_x64_128_u64(key, 1234);
   hash_value1 = p.first;
@@ -1072,12 +1066,12 @@ inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, Ha
 #endif  // MURMUR128_SPLIT_C11_HPP
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::calHashAndBucket(Key key, uint64_t& hash_value1, uint64_t& hash_value2, int& bucket1, int& bucket2) {
+inline void BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::calHashAndBucket(Key key, uint64_t& hash_value1, uint64_t& hash_value2, int& bucket1, int& bucket2) {
   this->calHash(key, hash_value1, hash_value2);
   this->calBucketFromHash(bucket1, bucket2, hash_value1, hash_value2);
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::calBucketFromHash(int& bucket1, int& bucket2, uint64_t& hash_value1, uint64_t& hash_value2) {
+inline void BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::calBucketFromHash(int& bucket1, int& bucket2, uint64_t& hash_value1, uint64_t& hash_value2) {
   bucket1 = hash_value1 % (this->table_length_each * this->nprocs);
   bucket2 = hash_value2 % (this->table_length_each * this->nprocs);
   if (bucket1 == bucket2) {
@@ -1085,7 +1079,7 @@ inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, Ha
   }
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline uint64_t BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getHpRecord(int rank) {
+inline uint64_t BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getHpRecord(int rank) {
 #ifdef COMM_CHECK
   if (isIntra(this->myrank, rank) == true)
     ++(this->intra_comm_count);
@@ -1098,7 +1092,7 @@ inline uint64_t BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2
   return result;
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::setHpRecord(uint64_t hash_value) {
+inline void BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::setHpRecord(uint64_t hash_value) {
 #ifdef COMM_CHECK
   if (isIntra(this->myrank, this->myrank) == true)
     ++(this->intra_comm_count);
@@ -1109,7 +1103,7 @@ inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, Ha
   MPI_Win_flush(this->myrank, this->hp_win);
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline uint64_t BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getHpFlag(int rank) {
+inline uint64_t BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getHpFlag(int rank) {
 #ifdef COMM_CHECK
   if (isIntra(this->myrank, rank) == true)
     ++(this->intra_comm_count);
@@ -1122,7 +1116,7 @@ inline uint64_t BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2
   return result;
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::setHpFlag(int rank, uint64_t hash_value) {
+inline void BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::setHpFlag(int rank, uint64_t hash_value) {
 #ifdef COMM_CHECK
   if (isIntra(this->myrank, rank) == true)
     ++(this->intra_comm_count);
@@ -1133,8 +1127,8 @@ inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, Ha
   MPI_Win_flush(rank, this->hp_flag_win);
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline typename BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::GPtr
-BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getHPtr(int rank, int number) {
+inline typename BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::GPtr
+BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getHPtr(int rank, int number) {
 #ifdef COMM_CHECK
   if (isIntra(this->myrank, rank) == true)
     ++(this->intra_comm_count);
@@ -1147,7 +1141,7 @@ BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>:
   return result;
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::setHPtr(GPtr node, int number) {
+inline void BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::setHPtr(GPtr node, int number) {
 #ifdef COMM_CHECK
   if (isIntra(this->myrank, this->myrank) == true)
     ++(this->intra_comm_count);
@@ -1160,4 +1154,4 @@ inline void BucketizedCuckooHashTable<Key, Value, HashFunctor1, HashFunctor2, Ha
 }
 }  // namespace ngu
 
-#endif  // DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_BUCKETIZED_CUCKOO_HASHTABLE_H
+#endif  // DISTRIBUTED_DATA_STRUCTURE_HASH_MAP_BUCKETIZED_CUCKOO_HASH_MAP_H
