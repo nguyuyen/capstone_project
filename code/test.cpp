@@ -13,43 +13,63 @@
 // #define AFRAID
 
 int main(int argc, char** argv) {
-  int total_op = atoi(argv[1]);
-  int insert_weight = atoi(argv[2]);
-  int get_weight = atoi(argv[3]);
-  int remove_weight = atoi(argv[4]);
+  int type = atoi(argv[1]);
+  int total_op = atoi(argv[2]);
+  int insert_weight = atoi(argv[3]);
+  int get_weight = atoi(argv[4]);
+  int remove_weight = atoi(argv[5]);
 
   MPI_Init(&argc, &argv);
-  // int nprocs;
-  // int myrank;
-  // MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
-  // MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
-  // char processor_name[MPI_MAX_PROCESSOR_NAME];
-  // int name_len;
-  // MPI_Get_processor_name(processor_name, &name_len);
-  // printf("Hello world from processor %s, rank %d out of %d processors\n", processor_name, myrank, nprocs);
 
   ngu::HashMapWorkload workloadA(total_op, insert_weight, get_weight, remove_weight);
 
-  ngu::benchmarkInsertedLFDHM(workloadA);
+  switch (type) {
+    case 1:
+      ngu::benchmarkInsertedLFDHM(workloadA);
+      break;
 
-  ngu::benchmarkInsertedMHT(workloadA, 200);
-  ngu::benchmarkInsertedMHT(workloadA, 400);
-  ngu::benchmarkInsertedMHT(workloadA, 800);
+    case 2:
+      ngu::benchmarkInsertedMHT(workloadA, 200);
+      ngu::benchmarkInsertedMHT(workloadA, 400);
+      ngu::benchmarkInsertedMHT(workloadA, 800);
+      break;
 
-  ngu::benchmarkInsertedSOHT(workloadA, 200);
-  ngu::benchmarkInsertedSOHT(workloadA, 400);
-  ngu::benchmarkInsertedSOHT(workloadA, 800);
+    case 3:
+      ngu::benchmarkInsertedSOHT(workloadA, 200);
+      ngu::benchmarkInsertedSOHT(workloadA, 400);
+      ngu::benchmarkInsertedSOHT(workloadA, 800);
+      break;
 
-  ngu::benchmarkInsertedBCHT(workloadA, 50);
-  ngu::benchmarkInsertedBCHT(workloadA, 70);
-  ngu::benchmarkInsertedBCHT(workloadA, 90);
+    case 4:
+      ngu::benchmarkInsertedBCHT(workloadA, 50);
+      ngu::benchmarkInsertedBCHT(workloadA, 70);
+      ngu::benchmarkInsertedBCHT(workloadA, 90);
+      break;
 
-  ngu::benchmarkInsertedBCHT(workloadA, 50);
-  ngu::benchmarkInsertedBCHT(workloadA, 70);
-  ngu::benchmarkInsertedBCHT(workloadA, 90);
+    case 5:
+      ngu::benchmarkInsertedPHHT(workloadA, 50);
+      ngu::benchmarkInsertedPHHT(workloadA, 70);
+      break;
 
-  ngu::benchmarkInsertedPHHT(workloadA, 50);
-  ngu::benchmarkInsertedPHHT(workloadA, 70);
+    default:
+      ngu::benchmarkInsertedLFDHM(workloadA);
+
+      ngu::benchmarkInsertedMHT(workloadA, 200);
+      ngu::benchmarkInsertedMHT(workloadA, 400);
+      ngu::benchmarkInsertedMHT(workloadA, 800);
+
+      ngu::benchmarkInsertedSOHT(workloadA, 200);
+      ngu::benchmarkInsertedSOHT(workloadA, 400);
+      ngu::benchmarkInsertedSOHT(workloadA, 800);
+
+      ngu::benchmarkInsertedBCHT(workloadA, 50);
+      ngu::benchmarkInsertedBCHT(workloadA, 70);
+      ngu::benchmarkInsertedBCHT(workloadA, 90);
+
+      ngu::benchmarkInsertedPHHT(workloadA, 50);
+      ngu::benchmarkInsertedPHHT(workloadA, 70);
+      break;
+  }
   MPI_Finalize();
   return 0;
 }
