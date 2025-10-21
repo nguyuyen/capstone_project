@@ -359,7 +359,11 @@ inline void PurcellHarrisHashMap<Key, Value, HashFunctor>::conditionallyLowerBou
 }
 template <typename Key, typename Value, typename HashFunctor>
 inline int PurcellHarrisHashMap<Key, Value, HashFunctor>::getBucket(int position, int index) {
-  return ((position + index * (index + 1) / 2) % (this->nprocs * this->table_length_each));
+  uint64_t offset_1 = index;
+  uint64_t offset_2 = offset_1 * (offset_1 + 1) / 2 + position;
+  uint64_t offset_3 = offset_2 % (this->nprocs * this->table_length_each);
+  return offset_3;
+  // return ((position + index * (index + 1) / 2) % (this->nprocs * this->table_length_each));
 }
 template <typename Key, typename Value, typename HashFunctor>
 inline bool PurcellHarrisHashMap<Key, Value, HashFunctor>::doesBucketContainCollision(int position, int index) {
