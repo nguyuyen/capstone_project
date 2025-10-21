@@ -68,6 +68,11 @@ int main(int argc, char** argv) {
       case 5:
         ngu::benchmarkInsertedPHHT(workloadA, 50);
         ngu::benchmarkInsertedPHHT(workloadA, 70);
+        break;
+
+      case 51:
+        ngu::benchmarkInsertedPHHT(workloadA, 50);
+        ngu::benchmarkInsertedPHHT(workloadA, 70);
         ngu::benchmarkInsertedPHHT(workloadA, 90);
         break;
 
