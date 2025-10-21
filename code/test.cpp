@@ -91,6 +91,21 @@ int main(int argc, char** argv) {
         ngu::benchmarkInsertedPHHT(workloadA, 70);
         break;
 
+      case 104:
+        ngu::benchmarkInsertedLFDHM(workloadA);
+
+        ngu::benchmarkInsertedMHT(workloadA, 200);
+        ngu::benchmarkInsertedMHT(workloadA, 400);
+        ngu::benchmarkInsertedMHT(workloadA, 800);
+
+        // ngu::benchmarkInsertedBCHT(workloadA, 50);
+        // ngu::benchmarkInsertedBCHT(workloadA, 70);
+        // ngu::benchmarkInsertedBCHT(workloadA, 90);
+
+        ngu::benchmarkInsertedPHHT(workloadA, 50);
+        ngu::benchmarkInsertedPHHT(workloadA, 70);
+        break;
+
       default:
         ngu::benchmarkInsertedLFDHM(workloadA);
 
