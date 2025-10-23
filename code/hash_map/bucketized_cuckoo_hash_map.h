@@ -178,7 +178,7 @@ class BucketizedCuckooHashMap {
   HashFunctor2 hash_functor2;
   HashFunctor3 hash_functor_backup;
   std::size_t max_dlist_size = 10;
-  int max_insert_try = 10;
+  int max_insert_try = 3;
 #ifdef DEBUG_MOVE
   int move_count = 0;
 #endif  // DEBUG_MOVE
