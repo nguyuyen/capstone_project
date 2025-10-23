@@ -621,7 +621,7 @@ inline bool BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, Hash
     this->setHPtr(null_gptr, 1);
     return false;
   }
-  this->CAS(source_bucket, source_slot, kick_marked_node, null_gptr);
+  this->CAS(source_bucket, source_slot, kick_marked_node, source_node);
   this->setHPtr(null_gptr, 0);
   this->setHPtr(null_gptr, 1);
   return false;
@@ -1072,6 +1072,7 @@ inline void BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, Hash
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
 inline void BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::calBucketFromHash(int& bucket1, int& bucket2, uint64_t& hash_value1, uint64_t& hash_value2) {
+  // TODO
   bucket1 = hash_value1 % (this->table_length_each * this->nprocs);
   bucket2 = hash_value2 % (this->table_length_each * this->nprocs);
   if (bucket1 == bucket2) {
