@@ -178,7 +178,7 @@ class BucketizedCuckooHashMap {
   HashFunctor2 hash_functor2;
   HashFunctor3 hash_functor_backup;
   std::size_t max_dlist_size = 10;
-  int max_insert_try = 3;
+  int max_insert_try = 5;
 #ifdef DEBUG_MOVE
   int move_count = 0;
 #endif  // DEBUG_MOVE
@@ -373,7 +373,6 @@ inline bool BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, Hash
   int debug_max_count = 10;
 #endif  // DEBUG2
   while (true) {
-    ++insert_try_count;
     if (insert_try_count > this->max_insert_try) {
       std::cout << "[[Rank = " << this->myrank << "]: try to much, cant insert" << std::endl;
       MPI_Abort(this->comm, 1);
@@ -400,7 +399,11 @@ inline bool BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, Hash
     } else {
       std::array<CuckooRecord, max_depth_search> path;
       int depth = this->pathSearch(bucket1, bucket2, path);
-      this->moveAlongPath(path, depth);
+      if (depth == -1) {
+        ++insert_try_count;
+      } else {
+        this->moveAlongPath(path, depth);
+      }
       continue;
     }
   }
