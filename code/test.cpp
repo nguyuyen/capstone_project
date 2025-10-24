@@ -59,6 +59,12 @@ int main(int argc, char** argv) {
         ngu::benchmarkInsertedSOHT(workloadA, 800);
         break;
 
+      case 31:
+        ngu::benchmarkInsertedSOHT(workloadA, 100);
+        break;
+      case 32:
+        ngu::benchmarkInsertedSOHT(workloadA, 200);
+        break;
       case 4:
         ngu::benchmarkInsertedBCHT(workloadA, 50);
         ngu::benchmarkInsertedBCHT(workloadA, 70);
