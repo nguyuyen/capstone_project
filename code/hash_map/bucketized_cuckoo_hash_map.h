@@ -94,7 +94,7 @@ class BucketizedCuckooHashMap {
   /// @param bucket Bucket hit if hit, bucket miss if has empty slot
   /// @param slot Slot hit if hit, slot miss if has empty slot
   /// @return 0: hit node has same key, 1 empty slot, 2 full of slot
-  int search(Key key, int& bucket, int& slot, Value& value);
+  int search(Key key, int& bucket, int& slot, GPtr& node, Value& value);
   /// @brief Move item from source to target
   /// @param source_bucket Source bucket
   /// @param source_slot Source slot
@@ -386,7 +386,8 @@ inline bool BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, Hash
       MPI_Abort(this->comm, 1);
     }
 #endif  // DEBUG2
-    search_result = this->search(key, bucket, slot, value_temp);
+    GPtr node_temp;
+    search_result = this->search(key, bucket, slot, node_temp, value_temp);
     if (search_result == 0) {
       result = false;
       break;
@@ -428,7 +429,8 @@ inline bool BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, Hash
   std::cout << "[[Rank = " << this->myrank << "]]: " << "get key: " << key << std::endl;
 #endif  // DEBUG
   int bucket, slot;
-  if (this->search(key, bucket, slot, value) == 0) {
+  GPtr node;
+  if (this->search(key, bucket, slot, node, value) == 0) {
     return true;
   } else
     return false;
@@ -441,12 +443,13 @@ inline bool BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, Hash
   int bucket, slot;
   Value value_temp;
   bool result = false;
+  GPtr node;
   while (true) {
-    if (this->search(key, bucket, slot, value_temp) == 0) {
-      GPtr node = getNode(bucket, slot);
-      this->setHPtr(node, 0);
-      if (this->getNode(bucket, slot) != node)
-        continue;
+    if (this->search(key, bucket, slot, node, value_temp) == 0) {
+      // GPtr node = getNode(bucket, slot);
+      // this->setHPtr(node, 0);
+      // if (this->getNode(bucket, slot) != node)
+      //   continue;
       if (this->CAS(bucket, slot, node, null_gptr) == true) {
         this->safeFreeNode(node);
         result = true;
@@ -462,8 +465,7 @@ inline bool BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, Hash
   return result;
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
-inline int BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::search(Key key, int& bucket, int& slot, Value& value) {
-  bool reset;
+inline int BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::search(Key key, int& bucket, int& slot, GPtr& node, Value& value) {
   bool hit = false;
   bool miss = false;
   int bucket1, bucket2;
@@ -493,16 +495,20 @@ inline int BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashF
       MPI_Abort(this->comm, 1);
     }
 #endif  // DEBUG2
-    reset = false;
     hit = false;
     miss = false;
     this->getBucketData(bucket1, bucket_data);
     this->getBucketData(bucket2, bucket_data + 4);
     for (int i = 0; i < 8; ++i) {
-      this->setHPtr(bucket_data[i], 0);
-      if (this->getNode(((i < 4) ? bucket1 : bucket2), i % 4) != bucket_data[i]) {
-        reset = true;
-        break;
+      while (true) {
+        this->setHPtr(bucket_data[i], 0);
+        GPtr node2 = this->getNode(((i < 4) ? bucket1 : bucket2), i % 4);
+        if (node2 != bucket_data[i]) {
+          bucket_data[i] = node2;
+          continue;
+        } else {
+          break;
+        }
       }
       if (bucket_data[i] == null_gptr) {
         if (miss == false) {
@@ -511,25 +517,23 @@ inline int BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashF
           slot = i % 4;
         }
       } else {
-        if (this->isKickMarked(bucket_data[i]) == true) {
-          this->helper(((i < 4) ? bucket1 : bucket2), i % 4, bucket_data[i]);
-          reset = true;
-          break;
-        }
+        // if (this->isKickMarked(bucket_data[i]) == true) {
+        //   this->helper(((i < 4) ? bucket1 : bucket2), i % 4, bucket_data[i]);
+        //   reset = true;
+        //   break;
+        // }
         DataNode data_node = this->getData(bucket_data[i]);
         value = data_node.value;
         if (data_node.key == key) {
           hit = true;
           bucket = ((i < 4) ? bucket1 : bucket2);
           slot = i % 4;
+          node = bucket_data[i];
           break;
         }
       }
     }
     this->setHPtr(null_gptr, 0);
-    if (reset == true) {
-      continue;
-    }
     if (hit == true) {
 #ifdef DEBUG
       std::cout << "[[Rank = " << this->myrank << "]]: " << "search at bucket: " << bucket1 << "," << bucket2 << ": found" << std::endl;
