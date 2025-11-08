@@ -5,6 +5,8 @@ EXEF = exe
 FILE = test
 CLUSTER = cluster_check
 
+RDMA = rdma_check
+
 SRC = $(FILE).cpp
 EXE = $(FILE)
 HOSTF = hosts
@@ -29,6 +31,12 @@ check:
 
 run_check:
 	mpirun --np $(NP) --hostfile ./$(HOSTF) ./$(EXEF)/$(CLUSTER) $(ARGS)
+
+rdma_check:
+	$(CC) -o $(EXEF)/$(RDMA) $(RDMA).cpp $(CFLAG)
+
+run_rdma_check:
+	mpirun --np $(NP) --hostfile ./$(HOSTF) ./$(EXEF)/$(RDMA) $(ARGS)
 
 clean:
 	rm -rf $(EXEF)
