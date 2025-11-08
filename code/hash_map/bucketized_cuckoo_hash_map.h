@@ -1108,7 +1108,7 @@ inline void BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, Hash
     ++(this->inter_comm_count);
 #endif  // COMM_CHECK
   MPI_Accumulate(&hash_value, sizeof(uint64_t), MPI_CHAR, this->myrank, 0, sizeof(uint64_t), MPI_CHAR, MPI_REPLACE, this->hp_record_win);
-  MPI_Win_flush(this->myrank, this->hp_win);
+  MPI_Win_flush(this->myrank, this->hp_record_win);
 }
 template <typename Key, typename Value, typename HashFunctor1, typename HashFunctor2, typename HashFunctor3>
 inline uint64_t BucketizedCuckooHashMap<Key, Value, HashFunctor1, HashFunctor2, HashFunctor3>::getHpFlag(int rank) {
