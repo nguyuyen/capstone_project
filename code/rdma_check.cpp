@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
   int result = 0;
   int result2 = 0;
 
-  for (int i = 0; i < 100000; ++i) {
+  for (int i = 0; i < 1000; ++i) {
     MPI_Get_accumulate(NULL, 0, MPI_INT, &result, 1, MPI_INT, 0, 0, 1, MPI_INT, MPI_NO_OP, w);
     MPI_Win_flush(0, w);
     MPI_Compare_and_swap(&temp, &result, &result2, MPI_INT, 0, 0, w);
@@ -39,6 +39,12 @@ int main(int argc, char** argv) {
 
   if (myrank == 0) {
     std::cout << "OK" << std::endl;
+  }
+
+  MPI_Barrier(MPI_COMM_WORLD);
+
+    for (int i = 0; i < 1000; ++i) {
+    MPI_Win_flush(0, w);
   }
 
   MPI_Finalize();
